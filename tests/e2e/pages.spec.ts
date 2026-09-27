@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { openPdf, sample } from './helpers';
 
-/** 各ページの本文（先頭の文字列）を順に返す */
+/** Returns the text (leading string) of each page in order */
 async function pageTexts(page: Page): Promise<string[]> {
   await page.waitForTimeout(600);
   return page.evaluate(async () => {
@@ -11,7 +11,7 @@ async function pageTexts(page: Page): Promise<string[]> {
     const out: string[] = [];
     for (const p of doc.pages) {
       const t = await rt.engine.getPageTextRects(doc, p).toPromise();
-      // 抽出結果に制御文字が混じることがあるので取り除く
+      // Strip control characters that sometimes appear in the extracted text
       out.push(
         t
           .map((r: { content: string }) => r.content)
@@ -28,7 +28,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   await expect(page.locator('.thumb')).toHaveCount(3);
   expect(await pageTexts(page)).toEqual(['ページA', 'ページB', 'ページC']);
 
-  // 2 ページ目を選んで Delete → 確認 → 削除
+  // Select page 2 and press Delete -> confirm -> deleted
   await page.locator('.thumb').nth(1).click();
   await page.keyboard.press('Delete');
   await expect(page.locator('.modal')).toContainText('ページ2を削除しますか');
@@ -38,7 +38,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   expect(await pageTexts(page)).toEqual(['ページA', 'ページC']);
   await expect(page.locator('.status-bar')).toContainText('ページ2を削除しました');
 
-  // 2 ページ目（C）を 1 ページ目の上半分へドラッグ → 先頭に移動
+  // Drag page 2 (C) onto the top half of page 1 -> moves to the front
   const first = page.locator('.thumb').nth(0);
   const box = (await first.boundingBox())!;
   await page.locator('.thumb').nth(1).hover();
@@ -49,7 +49,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   await page.waitForSelector('.page img');
   expect(await pageTexts(page)).toEqual(['ページC', 'ページA']);
 
-  // PDF ファイルをサムイルの末尾（一覧の余白）に落とすと、そのページが追加される
+  // Dropping a PDF file after the last thumbnail (empty area of the list) appends its pages
   const extra = readFileSync(sample('sample-msmincho.pdf')).toString('base64');
   await page.evaluate((b64) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -68,7 +68,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   expect(texts.slice(0, 2)).toEqual(['ページC', 'ページA']);
   expect(texts[2]).toContain('見本の文書');
 
-  // ページ構成を変えた文書は追記保存できない
+  // A document whose page structure changed cannot be saved incrementally
   await page.locator('.toolbar .save-btn').click();
   await expect(page.locator('.menu-list button', { hasText: '注釈付きで保存' })).toBeDisabled();
 });

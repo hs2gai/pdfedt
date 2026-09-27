@@ -1,13 +1,13 @@
 /**
- * Chrome 拡張のバックグラウンド（MV3 service worker）。
+ * Background of the Chrome extension (MV3 service worker).
  *
- * ブラウザで開かれた PDF を pdfedt のビューワページ（index.html#src=<元 URL>）に付け替える。
- * Chrome 内蔵の PDF ビューワを無効化する API は無いため、3 つの経路で先回りする:
- *   1. URL が .pdf で終わる http(s)   → declarativeNetRequest で要求自体をリダイレクト（内蔵ビューワは起動しない）
- *   2. URL からは分からない http(s)   → webRequest.onHeadersReceived で Content-Type を見てタブを差し替える
- *   3. file:// のローカル PDF          → webNavigation.onBeforeNavigate でタブを差し替える
- * 加えて、ツールバーのアイコンと PDF リンクの右クリックメニューから手動で開ける。
- * 差し替え先のページが元 URL を fetch して読み込む（ビューワが取りに行く先はユーザーが開こうとした URL だけ）。
+ * Redirects PDFs opened in the browser to the pdfedt viewer page (index.html#src=<original URL>).
+ * There is no API to disable Chrome's built-in PDF viewer, so three paths get there first:
+ *   1. http(s) URLs ending in .pdf   -> declarativeNetRequest redirects the request itself (the built-in viewer never starts)
+ *   2. other http(s) URLs            -> webRequest.onHeadersReceived checks Content-Type and replaces the tab
+ *   3. local PDFs on file://         -> webNavigation.onBeforeNavigate replaces the tab
+ * PDFs can also be opened manually from the toolbar icon and the context menu on PDF links.
+ * The viewer page fetches the original URL itself (the only URL it requests is the one the user tried to open).
  */
 const VIEWER = chrome.runtime.getURL('index.html');
 const viewerUrl = (src: string) => `${VIEWER}#src=${src}`;
@@ -15,7 +15,7 @@ const viewerUrl = (src: string) => `${VIEWER}#src=${src}`;
 const PDF_URL = String.raw`^https?://[^?#]+\.pdf(\?.*)?$`;
 const RULE_ID = 1;
 
-/** 経路 1: 自動転送の ON/OFF（storage.local）。OFF でも手動で開く経路は残す */
+/** Path 1: automatic redirect on/off (storage.local). Manual opening stays available when off */
 const AUTO_KEY = 'autoOpen';
 async function isAutoOpen(): Promise<boolean> {
   const { [AUTO_KEY]: v } = await chrome.storage.local.get(AUTO_KEY);
@@ -30,7 +30,7 @@ async function applyRedirectRule(enabled: boolean) {
           {
             id: RULE_ID,
             priority: 1,
-            // \0 は regexFilter の全一致（= 元 URL）
+            // \0 is the whole regexFilter match (= the original URL)
             action: { type: 'redirect', redirect: { regexSubstitution: viewerUrl(String.raw`\0`) } },
             condition: { regexFilter: PDF_URL, isUrlFilterCaseSensitive: false, resourceTypes: ['main_frame'] },
           },
@@ -56,12 +56,12 @@ async function setup() {
 chrome.runtime.onInstalled.addListener(() => void setup());
 chrome.runtime.onStartup.addListener(() => void setup());
 
-/** 自動転送が ON ならタブをビューワに差し替える */
+/** Replaces the tab with the viewer when automatic redirect is on */
 async function redirectTab(tabId: number, src: string) {
   if (await isAutoOpen()) await chrome.tabs.update(tabId, { url: viewerUrl(src) });
 }
 
-// 経路 2: レスポンスの Content-Type が PDF（inline 表示されるもの）
+// Path 2: responses whose Content-Type is PDF (shown inline)
 const isPdfResponse = (headers: chrome.webRequest.HttpHeader[] = []) => {
   const get = (name: string) => headers.find((h) => h.name.toLowerCase() === name)?.value?.toLowerCase() ?? '';
   return /^application\/(x-)?pdf\b/.test(get('content-type')) && !/^\s*attachment/.test(get('content-disposition'));
@@ -75,7 +75,7 @@ chrome.webRequest.onHeadersReceived.addListener(
   ['responseHeaders'],
 );
 
-// 経路 3: file:// のローカル PDF（拡張の「ファイルの URL へのアクセスを許可する」が必要）
+// Path 3: local PDFs on file:// (needs "Allow access to file URLs" for the extension)
 chrome.webNavigation.onBeforeNavigate.addListener(
   (details) => {
     if (details.frameId !== 0 || !/\.pdf$/i.test(details.url)) return;
@@ -84,7 +84,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(
   { url: [{ schemes: ['file'] }] },
 );
 
-// 手動で開く
+// Manual opening
 chrome.action.onClicked.addListener(() => void chrome.tabs.create({ url: VIEWER }));
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'open-link' && info.linkUrl) void chrome.tabs.create({ url: viewerUrl(info.linkUrl) });

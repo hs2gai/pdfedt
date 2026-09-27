@@ -9,7 +9,7 @@ test('スタンプ作成画面で作例を編集して保存し、エディタ�
   await page.waitForSelector('.se-canvas-wrap');
   await expect(page.locator('.se-list .se-item')).toHaveCount(4);
 
-  // 丸（横書き）を元に、文字要素をドラッグで動かし、名前を付けて保存
+  // Starting from the round (horizontal) preset, drag a text element, then name and save it
   await page.locator('.se-item[title="丸（横書き）"]').click();
   const hit = page.locator('.se-overlay .se-hit').nth(1);
   const box = (await hit.boundingBox())!;
@@ -24,18 +24,18 @@ test('スタンプ作成画面で作例を編集して保存し、エディタ�
   await expect(page.locator('.se-status')).toContainText('保存しました');
   await expect(page.locator('.se-list .se-item')).toHaveCount(5);
 
-  // 要素の追加と削除
+  // Add and delete an element
   await page.locator('.se-tools button', { hasText: '線' }).click();
   await expect(page.locator('.se-overlay .se-hit')).toHaveCount(3);
   await page.keyboard.press('Delete');
   await expect(page.locator('.se-overlay .se-hit')).toHaveCount(2);
 
-  // エディタ側のスタンプパネルに自作が現れ、押せる
+  // The custom stamp appears in the editor's stamp panel and can be placed
   await openPdf(page, 'sample-ja-form.pdf');
   const { box: pageBox } = await pageGeometry(page);
   await page.locator('.toolbar button', { hasText: 'スタンプ' }).click();
   await page.waitForSelector('.stamp-panel');
-  // 自作には左上に目印が付く
+  // Custom stamps get a marker in the top-left corner
   await expect(page.locator('.stamp-preset[title^="検印"] .stamp-mine')).toHaveText('★');
   await expect(page.locator('.stamp-preset[title^="四角"] .stamp-mine')).toHaveCount(0);
   await page.locator('.stamp-preset[title^="検印"]').click();

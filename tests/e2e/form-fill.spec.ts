@@ -13,10 +13,10 @@ const fieldValues = (page: import('@playwright/test').Page): Promise<FieldSummar
       })),
   );
 
-/** AcroForm の入力欄に記入し、注釈付き保存（増分）で値が残る */
+/** Fill an AcroForm field; the value survives a save with annotations (incremental) */
 test('フォームに入力して保存できる', async ({ page }) => {
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
   });
   await openPdf(page, 'sample-form.pdf');
@@ -32,7 +32,7 @@ test('フォームに入力して保存できる', async ({ page }) => {
   await page.waitForTimeout(800);
   expect((await fieldValues(page)).find((f) => f.name === name)?.value).toBe('山田　太郎');
 
-  // 保存して開き直しても値が残る
+  // The value remains after saving and reopening
   const saved = await saveVia(page, '注釈付きで保存');
   await page.locator('input[type=file]').first().setInputFiles({ name: 'filled.pdf', mimeType: 'application/pdf', buffer: saved });
   await page.waitForSelector('.page img');

@@ -3,6 +3,30 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に従う。バージョンは [SemVer](https://semver.org/lang/ja/)。
 `scripts/release.py` が Conventional Commits（`feat:` / `fix:` …）から次バージョンとこのファイルの節を生成する。
 
+## [0.4.4] - 2026-09-27
+
+### Docs
+
+- SECURITY.md の英語の返信に関する記述を日本語の節に合わせる
+
+## [0.4.3] - 2026-09-27
+
+### Docs
+
+- SECURITY.md から運営体制の説明（空き時間での運営）を削る
+
+## [0.4.2] - 2026-09-27
+
+### Docs
+
+- CONTRIBUTING のプルリクエスト方針を「提案として検討する」に改める
+
+## [0.4.1] - 2026-09-27
+
+### Docs
+
+- CONTRIBUTING.md を追加（Issue 歓迎、プルリクエストは提案として受けて開発側で取り込む）
+
 ## [0.4.0] - 2026-09-27
 
 ### Added

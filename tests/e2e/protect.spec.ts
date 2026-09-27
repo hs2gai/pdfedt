@@ -5,14 +5,14 @@ import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample } from
 const STAMP = 13;
 
 test.beforeEach(async ({ page }) => {
-  // File System Access API を無効化してダウンロード経路を使わせる
+  // Disable the File System Access API to force the download path
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
   });
 });
 
-/** バイト列を開き直し、パスワード入力を経て表示されるまで待つ */
+/** Reopens the bytes, enters the password and waits until the page is rendered */
 async function reopenWithPassword(page: Page, bytes: Buffer, password: string) {
   await page.locator('input[type=file]').first().setInputFiles({ name: 'saved.pdf', mimeType: 'application/pdf', buffer: bytes });
   await expect(page.locator('.password-prompt')).toBeVisible();
@@ -35,7 +35,7 @@ test('パスワードを付けて保存すると、開くときにパスワー�
   const submit = dialog.locator('button[type=submit]');
   const [pw, confirm] = [dialog.locator('input[type=password]').nth(0), dialog.locator('input[type=password]').nth(1)];
 
-  // 不一致・免責への同意なしでは保存できない
+  // Cannot save while the passwords mismatch or the disclaimer is not accepted
   await pw.fill('Secret-2026');
   await confirm.fill('Secret-2025');
   await expect(dialog.locator('.error')).toBeVisible();
@@ -50,14 +50,14 @@ test('パスワードを付けて保存すると、開くときにパスワー�
   const saved = readFileSync((await download.path())!);
   expect(isEncrypted(saved)).toBe(true);
 
-  // 作業中の文書には暗号化が残らない（通常の保存は平文のまま）
+  // The working document is not left encrypted (a normal save stays unencrypted)
   const plain = await saveVia(page, '新ファイルで保存');
   expect(isEncrypted(plain)).toBe(false);
 
   await reopenWithPassword(page, saved, 'Secret-2026');
   expect(await annotationTypes(page)).toEqual([STAMP]);
 
-  // ページ操作後の開き直しでもパスワードを聞き直さず、保存結果にもパスワードが残る
+  // Reopening after a page operation does not ask for the password again, and the saved result keeps it
   const pages = await page.locator('.thumb').count();
   const extra = readFileSync(sample('sample-msmincho.pdf')).toString('base64');
   await page.evaluate((b64) => {

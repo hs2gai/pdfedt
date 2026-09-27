@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// 純粋ロジック（日付書式・フォント解析・xref の書き直し など）のユニットテスト。
-// PDFium を通す部分は tests/e2e（Playwright）で確認する
+// Unit tests for pure logic (date formatting, font parsing, xref rewriting, etc.).
+// Anything that goes through PDFium is covered by tests/e2e (Playwright)
 export default defineConfig({
   test: {
     include: ['tests/unit/**/*.test.ts'],

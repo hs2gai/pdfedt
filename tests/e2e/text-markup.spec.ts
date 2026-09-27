@@ -6,14 +6,14 @@ const HIGHLIGHT = 9;
 type Seg = { origin: { x: number; y: number }; size: { width: number; height: number } };
 
 /**
- * FontBBox が巨大なフォント（原ノ味ゴシックなど）では PDFium の文字ボックスが隣の行まで伸びる。
- * 補正（src/pdf/text-geometry.ts）により、複数行のハイライトが行ごとの矩形になり高さも文字サイズ程度に収まること
+ * With fonts that have a huge FontBBox (e.g. Harano Aji Gothic), PDFium's char boxes extend into adjacent lines.
+ * The correction (src/pdf/text-geometry.ts) makes a multi-line highlight one rect per line, about the font size in height
  */
 test('複数行のハイライトが行ごとの矩形になる（FontBBox が巨大なフォント）', async ({ page }) => {
   await openPdf(page, 'sample-mixed-lines.pdf');
   const { box, scale } = await pageGeometry(page);
 
-  // 1 行目（ベースライン y=100）の途中から 2 行目（y=112）の途中までなぞる
+  // Drag from the middle of line 1 (baseline y=100) to the middle of line 2 (y=112)
   await selectTool(page, 'ハイライト');
   await page.mouse.move(box.x + 200 * scale, box.y + 96 * scale);
   await page.mouse.down();
@@ -31,7 +31,7 @@ test('複数行のハイライトが行ごとの矩形になる（FontBBox が�
   const segs = annots[0].segs;
   expect(segs).toHaveLength(2);
   for (const s of segs) expect(s.size.height).toBeLessThanOrEqual(12);
-  // 2 つの矩形は縦に重ならない（1 行目の下端 ≤ 2 行目の上端）
+  // The two rects do not overlap vertically (bottom of line 1 <= top of line 2)
   const [a, b] = [...segs].sort((p, q) => p.origin.y - q.origin.y);
   expect(a.origin.y + a.size.height).toBeLessThanOrEqual(b.origin.y + 1);
 });

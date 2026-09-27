@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample, selectTool } from './helpers';
 
-// @embedpdf/models の PdfAnnotationSubtype
+// PdfAnnotationSubtype from @embedpdf/models
 const TEXT = 1;
 const SQUARE = 5;
 const HIGHLIGHT = 9;
@@ -16,7 +16,7 @@ test.describe('テキスト注釈', () => {
     await addText(page, box.x + 320, box.y + 395, '山田　太郎');
     expect(await annotationTypes(page)).toEqual([STAMP]);
 
-    // 選択して編集メニューから書き換える
+    // Select it and rewrite the text from the edit menu
     await page.evaluate(() => {
       const a = window.__pdf.annotations;
       const o = a.getAnnotations()[0].object;
@@ -34,7 +34,7 @@ test.describe('テキスト注釈', () => {
     );
     expect(texts).toEqual(['山田　太郎（編集後）']);
 
-    // Delete キーで削除
+    // Delete with the Delete key
     await page.evaluate(() => {
       const a = window.__pdf.annotations;
       const o = a.getAnnotations()[0].object;
@@ -64,9 +64,9 @@ test.describe('描画ツール', () => {
       await page.mouse.move(box.x + 300 + i * 12, box.y + 1000 + Math.sin(i / 2) * 20, { steps: 2 });
     }
     await page.mouse.up();
-    await page.waitForTimeout(1500); // ink の commitDelay
+    await page.waitForTimeout(1500); // ink commitDelay
 
-    // 本文「上記のとおり申請します。」（pt 左上原点 50,311 – 170,321）をなぞる
+    // Trace the body sentence "I hereby apply as stated above." (pt, top-left origin, 50,311 – 170,321)
     await selectTool(page, 'ハイライト');
     await page.mouse.move(box.x + 52 * scale, box.y + 316 * scale);
     await page.mouse.down();
@@ -95,9 +95,9 @@ test.describe('描画ツール', () => {
 
 test.describe('保存', () => {
   test.beforeEach(async ({ page }) => {
-    // File System Access API を無効化してダウンロード経路を使わせる
+    // Disable the File System Access API to force the download path
     await page.addInitScript(() => {
-      // @ts-expect-error テスト用
+      // @ts-expect-error test only
       delete window.showSaveFilePicker;
     });
   });
@@ -112,10 +112,10 @@ test.describe('保存', () => {
     expect(saved.length).toBeGreaterThan(original.length);
     expect(saved.subarray(0, original.length).equals(original)).toBe(true);
     expect(saved.toString('latin1')).toMatch(/\/Subtype\s*\/Stamp/);
-    // スリム化: 変更していないオブジェクトは増分に含まれない（注釈 + サブセットフォント程度）
+    // Slimming: unchanged objects are not in the increment (roughly the annotation + a subset font)
     expect(saved.length - original.length).toBeLessThan(12_000);
 
-    // 保存したファイルを開き直せて、注釈が残っている（PDFium 自身による検証）
+    // The saved file reopens and the annotation is still there (verified by PDFium itself)
     await page.locator('input[type=file]').first().setInputFiles({ name: 'saved.pdf', mimeType: 'application/pdf', buffer: saved });
     await page.waitForSelector('.page img');
     await page.waitForTimeout(800);
@@ -132,7 +132,7 @@ test.describe('保存', () => {
 
     const flat = await saveVia(page, '確定して書き出し');
     expect(flat.toString('latin1')).not.toMatch(/\/Subtype\s*\/Stamp/);
-    expect(flat.toString('latin1')).toContain('/FontFile2'); // 焼き込まれたテキストの埋め込みフォント
+    expect(flat.toString('latin1')).toContain('/FontFile2'); // embedded font of the flattened text
   });
 });
 

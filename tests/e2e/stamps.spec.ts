@@ -23,13 +23,13 @@ async function placeStamp(
 
 test('プリセットのスタンプを押して保存できる', async ({ page }) => {
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
   });
   await openPdf(page, 'sample-ja-form.pdf');
   const { box } = await pageGeometry(page);
 
-  // 作例: 四角（上段・日付・氏名）/ データ印（部署・短い日付・氏名）/ 丸・縦書き（氏名）
+  // Presets: box (top line, date, name) / date seal (department, short date, name) / round vertical (name)
   await placeStamp(page, '.stamp-preset[title^="四角"]', box.x + 900, box.y + 300, { 下段: '山田' });
   await placeStamp(page, '.stamp-preset[title^="データ印"]', box.x + 900, box.y + 500, { 上段: '総務部', 下段: '山田' });
   await placeStamp(page, '.stamp-preset[title^="丸（縦書き）"]', box.x + 1100, box.y + 500, { 文字: '山田太郎' });
@@ -57,10 +57,10 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
   expect(annots[2].pdfa?.values['文字']).toBe('山田太郎');
   for (const a of annots) expect(a.flags).toContain('print');
 
-  // ツールは 1 回押すと選択に戻る（連打しない）
+  // The tool returns to select after one placement (no repeated stamping)
   await expect(page.locator('.stamp-panel')).toHaveCount(0);
 
-  // カスタム書式（Excel 風）
+  // Custom format (Excel-style)
   await page.locator('.toolbar button', { hasText: 'スタンプ' }).click();
   await page.locator('.stamp-preset[title^="四角"]').click();
   await page.locator('.stamp-fields label', { hasText: '日付' }).locator('select').selectOption('custom');
@@ -69,7 +69,7 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
     /^→ \d{4}-\d{2}-\d{2} [日月火水木金土]$/,
   );
 
-  // 四角: 日付なし・下段が空なら 2 段目を詰めて低くなる
+  // Box: with no date and an empty bottom line, the second row collapses and the stamp gets shorter
   await page.locator('.stamp-fields label', { hasText: '日付' }).locator('select').selectOption('none');
   await page.locator('.stamp-fields label', { hasText: '下段' }).locator('input').fill('');
   await page.mouse.click(box.x + 600, box.y + 300);
@@ -79,7 +79,7 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
   );
   expect(heights[3]).toBeLessThan(heights[0] - 10); // 38pt → 26pt
 
-  // 縦横比を保ったリサイズ後も外観（埋め込みフォント）が保たれる
+  // The appearance (embedded font) survives an aspect-preserving resize
   await page.evaluate(() => {
     const a = window.__pdf.annotations;
     const o = a.getAnnotations()[0].object;
@@ -92,7 +92,7 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
   const saved = readFileSync(await saveAndPath(page)).toString('latin1');
   expect((saved.match(/\/Subtype\s*\/Stamp/g) ?? []).length).toBe(4);
   expect(saved).toContain('BIZUDPGothic');
-  // 丸（縦書き）はハンコ用の書体（毛筆）が埋め込まれる
+  // The round (vertical) stamp embeds a seal typeface (brush style)
   expect(saved).toContain('YujiSyuku');
 });
 

@@ -4,7 +4,7 @@ import { pageGeometry, addText, annotationTypes, saveVia, sample } from './helpe
 
 test('パスワード付き PDF を開いて注釈し、増分保存できる', async ({ page }) => {
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
   });
   await page.goto('/');
@@ -30,7 +30,7 @@ test('パスワード付き PDF を開いて注釈し、増分保存できる', 
   const original = readFileSync(sample('sample-encrypted.pdf'));
   const saved = await saveVia(page, '注釈付きで保存');
   expect(saved.subarray(0, original.length).equals(original)).toBe(true);
-  // 保存後も同じパスワードで開けて注釈が残る
+  // After saving, the file opens with the same password and the annotation remains
   await page
     .locator('input[type=file]')
     .first()

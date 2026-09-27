@@ -2,16 +2,16 @@ import { test, expect } from '@playwright/test';
 import { openPdf } from './helpers';
 import { existsSync, readFileSync } from 'node:fs';
 
-/** 手元だけにある検証用文書（Acrobat の日本語タイプライター注釈を含む。リポジトリには入れない） */
+/** Local-only test document (contains Acrobat Japanese typewriter annotations; not committed to the repository) */
 const FREETEXT_PDF = 'docs/private/test.pdf';
 
 /**
- * 他ツールで作られた FreeText は元の外観を保ち、リサイズできず、移動しても外観が作り直されないこと。
+ * A FreeText created by another tool keeps its original appearance, cannot be resized, and its appearance is not regenerated when moved.
  */
 test('既存の FreeText は外観を保ったまま移動できる', async ({ page }) => {
   test.skip(!existsSync(FREETEXT_PDF), '検証用の FreeText 入り PDF が無い環境');
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
   });
   await openPdf(page, `../${FREETEXT_PDF}`);
@@ -23,11 +23,11 @@ test('既存の FreeText は外観を保ったまま移動できる', async ({ p
     return { id: ft.object.id, rect: ft.object.rect };
   });
   await page.waitForSelector('.annot-menu');
-  // リサイズハンドルは出ない（削除メニューだけ）
+  // No resize handles (only the delete menu)
   await expect(page.locator('.annot-menu')).toContainText('削除');
   await expect(page.locator('.annot-menu')).not.toContainText('編集');
 
-  // ドラッグで移動
+  // Move by dragging
   const box = await page.locator('.page').first().boundingBox();
   const pdfWidth = 595.276;
   const scale = box!.width / pdfWidth;
@@ -42,7 +42,7 @@ test('既存の FreeText は外観を保ったまま移動できる', async ({ p
   const after = await page.evaluate((id: string) => window.__pdf.annotations.getAnnotationById(id).object.rect, before.id);
   expect(after.origin.x).toBeGreaterThan(before.rect.origin.x + 10);
 
-  // 保存して外観ストリームが元のフォント（MicrosoftYaHeiUI）のままか確認
+  // Save and check that the appearance stream still uses the original font (MicrosoftYaHeiUI)
   await page.locator('.toolbar .save-btn').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -50,6 +50,6 @@ test('既存の FreeText は外観を保ったまま移動できる', async ({ p
   ]);
   await download.saveAs('_spike-out/existing-freetext.pdf');
   const saved = readFileSync('_spike-out/existing-freetext.pdf').toString('latin1');
-  // 元の外観（Acrobat が埋め込んだフォントを参照する /AP）がそのまま残り、Helvetica で作り直されていない
+  // The original appearance (/AP referencing the font Acrobat embedded) is kept and not regenerated with Helvetica
   expect(saved).toMatch(/\/Resources\s*<<\s*\/Font\s*<<\s*\/AAAAAA\+MicrosoftYaHeiUI/);
 });

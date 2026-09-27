@@ -28,7 +28,7 @@ describe('formatDateCompact', () => {
 });
 
 describe('formatDateCustom（Excel 風の書式）', () => {
-  const date = d(2026, 9, 21); // 月曜日
+  const date = d(2026, 9, 21); // Monday
 
   test('年月日のトークン', () => {
     expect(formatDateCustom(date, 'yyyy-mm-dd')).toBe('2026-09-21');

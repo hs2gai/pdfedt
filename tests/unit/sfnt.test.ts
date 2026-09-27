@@ -4,7 +4,7 @@ import { embedRestriction, extractSfntFace, readSfntFaces } from '../../src/pdf/
 
 const ttf = new Uint8Array(readFileSync('public/fonts/BIZUDPGothic-Regular.ttf'));
 
-/** 同じ書体を 2 つ束ねた TTC を組み立てる（Windows の msmincho.ttc と同じ構造） */
+/** Builds a TTC bundling the same face twice (same structure as Windows' msmincho.ttc) */
 function makeTtc(font: Uint8Array): Uint8Array {
   const header = 12 + 2 * 4; // 'ttcf' + version + numFonts + 2 offsets
   const faceA = header;
@@ -16,7 +16,7 @@ function makeTtc(font: Uint8Array): Uint8Array {
   dv.setUint32(8, 2);
   dv.setUint32(12, faceA);
   dv.setUint32(16, faceB);
-  // 2 つ目の書体はテーブルのオフセットをずらす（テーブル本体はコピー）
+  // Shift the table offsets of the second face (the table data is copied)
   out.set(font, faceA);
   out.set(font, faceB);
   const numTables = dv.getUint16(faceB + 4);
@@ -36,7 +36,7 @@ describe('readSfntFaces', () => {
     const faces = readSfntFaces(ttf);
     expect(faces).toHaveLength(1);
     expect(faces[0]).toMatchObject({ index: 0, postscriptName: 'BIZUDPGothic-Regular', fullName: 'BIZ UDPGothic' });
-    expect(embedRestriction(faces[0].fsType)).toBeNull(); // OFL なので埋め込み可
+    expect(embedRestriction(faces[0].fsType)).toBeNull(); // OFL, so embeddable
   });
   test('TTC は書体ごとに index 付きで列挙する', () => {
     const faces = readSfntFaces(makeTtc(ttf));
@@ -53,12 +53,12 @@ describe('extractSfntFace', () => {
   });
   test('TTC から取り出した書体は単体の TTF として読める', () => {
     const single = extractSfntFace(makeTtc(ttf), 1);
-    expect(single.length).toBeLessThan(ttf.length + 1024); // テーブルのコピーだけ（ヘッダー分の余裕）
+    expect(single.length).toBeLessThan(ttf.length + 1024); // Only the copied tables (plus headroom for the header)
     expect(single.length).toBeGreaterThan(ttf.length * 0.99);
     const faces = readSfntFaces(single);
     expect(faces).toHaveLength(1);
     expect(faces[0].postscriptName).toBe('BIZUDPGothic-Regular');
-    // テーブルの並びとバージョン（sfnt version）は元と同じ
+    // Table order and version (sfnt version) match the original
     expect(new DataView(single.buffer).getUint32(0)).toBe(new DataView(ttf.buffer).getUint32(0));
   });
 });
@@ -69,7 +69,7 @@ describe('embedRestriction（OS/2 fsType）', () => {
     [0x0008, null], // Editable
     [0x0004, null], // Preview & Print
     [0x0002, 'font.embedDenied'],
-    [0x0006, null], // 2 以外のビットが立っていれば制限なし
+    [0x0006, null], // No restriction if bits other than 2 are set
     [0x0200, 'font.bitmapOnly'],
     [0x0100, 'font.noSubset'],
   ])('fsType=0x%s', (fsType, expected) => {

@@ -2,11 +2,11 @@ import { expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// package.json のある場所をルートとして samples/ を参照する（ESM のため __dirname は使えない）
+// Resolve samples/ from the package.json directory as the root (__dirname is unavailable in ESM)
 export const samplesDir = resolve(process.cwd(), 'samples');
 export const sample = (name: string) => resolve(samplesDir, name);
 
-/** アプリを開いて PDF を読み込み、1 ページ目が描画されるまで待つ */
+/** Opens the app, loads a PDF and waits until the first page is rendered */
 export async function openPdf(page: Page, file: string) {
   await page.goto('/');
   await page.waitForSelector('input[type=file]', { state: 'attached' });
@@ -15,7 +15,7 @@ export async function openPdf(page: Page, file: string) {
   await page.waitForTimeout(300);
 }
 
-/** 1 ページ目の画面上の矩形と、pt → px の倍率 */
+/** On-screen rect of the first page and the pt -> px scale */
 export async function pageGeometry(page: Page) {
   const box = await page.locator('.page').first().boundingBox();
   expect(box).not.toBeNull();
@@ -27,8 +27,8 @@ export async function pageGeometry(page: Page) {
 }
 
 /**
- * ツールバーのツールを選ぶ。グループ（マーカー / 図形）にまとめられたツールは、
- * 表示中でなければ ▾ のメニューから選ぶ
+ * Selects a toolbar tool. A tool in a group (marker / shape) that is not currently shown
+ * is picked from the ▾ menu
  */
 export async function selectTool(page: Page, label: string) {
   const direct = page.locator(`.toolbar .icon-btn[aria-label="${label}"]`);
@@ -42,7 +42,7 @@ export async function selectTool(page: Page, label: string) {
   throw new Error(`ツールが見つかりません: ${label}`);
 }
 
-/** テキストツールでクリック位置に文字を置く */
+/** Places text at the click position with the Text tool */
 export async function addText(page: Page, x: number, y: number, text: string) {
   await page.locator('.toolbar button', { hasText: 'テキスト' }).first().click();
   await page.mouse.click(x, y);
@@ -58,12 +58,12 @@ export async function annotationTypes(page: Page): Promise<number[]> {
   );
 }
 
-/** 保存メニューから書き出し、ダウンロードされたバイト列を返す */
+/** Exports from the save menu and returns the downloaded bytes */
 export async function saveVia(page: Page, label: string): Promise<Buffer> {
   await page.locator('.toolbar .save-btn').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    // 見出しで探す（説明文に他の保存の名前が出ることがある: save.incrementalBlocked）
+    // Match by the label (descriptions may mention other save names: save.incrementalBlocked)
     page.locator('.menu-list button', { has: page.locator('.menu-label', { hasText: label }) }).click(),
   ]);
   const path = await download.path();
@@ -73,7 +73,7 @@ export async function saveVia(page: Page, label: string): Promise<Buffer> {
 
 declare global {
   interface Window {
-    /** E2E 用ビルドで公開される検証フック（src/app/EditorShell.tsx） */
+    /** Test hook exposed in the E2E build (src/app/EditorShell.tsx) */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     __pdf: any;
   }

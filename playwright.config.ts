@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// 本番相当（厳格な CSP 付きの vite preview）に対して E2E を走らせる。
-// `VITE_E2E=1` で window.__pdf（検証用フック）が有効になる。
+// Runs E2E against a production-like build (vite preview with the strict CSP).
+// `VITE_E2E=1` enables window.__pdf (the test hook).
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,

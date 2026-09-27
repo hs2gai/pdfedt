@@ -14,7 +14,7 @@ const summary = (page: import('@playwright/test').Page): Promise<Summary[]> =>
       })),
   );
 
-/** 引き出し線付きテキスト: 矢印の先 → 文字の位置 の 2 クリックで置き、編集と矢印の先の変更ができる */
+/** Callout text: placed with 2 clicks (arrow tip, then text position); the text and the arrow tip can be changed */
 test('引き出し線付きテキストを置いて編集できる', async ({ page }) => {
   await openPdf(page, 'sample-ja-form.pdf');
   const { box } = await pageGeometry(page);
@@ -32,13 +32,13 @@ test('引き出し線付きテキストを置いて編集できる', async ({ pa
   let [a] = await summary(page);
   expect(a.type).toBe(STAMP);
   expect(a.text).toBe('ここを確認');
-  // 矢印の先は枠の左下側にある
+  // The arrow tip is to the lower left of the box
   expect(a.callout!.tip.x).toBeLessThan(a.callout!.box.x);
   expect(a.callout!.tip.y).toBeGreaterThan(a.callout!.box.y);
-  // ツールは 1 回置くと選択に戻る
+  // The tool returns to Select after one placement
   await expect(page.locator('.tool-hint')).toHaveCount(0);
 
-  // 矢印の先を右下へ変更 → 枠の位置は変わらず、先だけ右に移る
+  // Move the arrow tip to the lower right; the box stays put and only the tip moves right
   const select = () =>
     page.evaluate(() => {
       const a = window.__pdf.annotations;
@@ -52,7 +52,7 @@ test('引き出し線付きテキストを置いて編集できる', async ({ pa
   [a] = await summary(page);
   expect(a.callout!.tip.x).toBeGreaterThan(a.callout!.box.x);
 
-  // 文字の編集でも引き出し線は保たれる
+  // Editing the text keeps the callout line
   await select();
   await page.locator('.annot-menu button', { hasText: '編集' }).click();
   await expect(page.locator('.popover textarea')).toHaveValue('ここを確認');

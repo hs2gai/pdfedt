@@ -14,13 +14,13 @@ const concat = (...parts: Uint8Array[]) => {
   return out;
 };
 
-/** 最小の元ファイル（PDFium の直列化と同じく CRLF 区切り） */
+/** Minimal original file (CRLF-separated, like PDFium's serialization) */
 const ORIGINAL = bytes(
   '%PDF-1.4\r\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\r\n2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\r\n' +
     'xref\r\n0 3\r\n0000000000 65535 f\r\n0000000009 00000 n\r\n0000000052 00000 n\r\ntrailer\r\n<</Size 3/Root 1 0 R>>\r\nstartxref\r\n95\r\n%%EOF\r\n',
 );
 
-/** クラシックな xref テーブルの増分を組み立てる（objects: objnum → "N 0 obj ... endobj"） */
+/** Builds an increment with a classic xref table (objects: objnum -> "N 0 obj ... endobj") */
 function classicIncrement(original: Uint8Array, objects: [number, string][]): Uint8Array {
   const parts: Uint8Array[] = [original];
   let offset = original.length;
@@ -77,7 +77,7 @@ describe('writeSlimIncrement', () => {
     expect(out.subarray(0, ORIGINAL.length)).toEqual(ORIGINAL);
     const text = dec.decode(out.subarray(ORIGINAL.length));
     expect(text).toContain(ANNOT);
-    expect(text).not.toContain('/Type/Pages'); // 未変更の 2 番は増分に含めない
+    expect(text).not.toContain('/Type/Pages'); // Unchanged object 2 is left out of the increment
     expect(text).toContain('/Prev 95');
     expect(text.endsWith('%%EOF\r\n')).toBe(true);
   });

@@ -3,7 +3,7 @@ import { openPdf, pageGeometry, addText, annotationTypes } from './helpers';
 
 const STAMP = 13;
 
-/** beforeunload の確認を受け入れつつ再読み込み */
+/** Reloads the page, accepting the beforeunload prompt */
 async function reloadAccepting(page: import('@playwright/test').Page) {
   const dialog = page.waitForEvent('dialog');
   await Promise.all([page.reload(), dialog.then((d) => d.accept())]);
@@ -17,24 +17,24 @@ test('注釈した状態がリロード後に「最近使ったファイル」�
   const { box } = await pageGeometry(page);
   await addText(page, box.x + 100, box.y + 100, '復元テスト');
   expect(await annotationTypes(page)).toEqual([STAMP]);
-  // 自動保存（変更後 1 秒）を待つ
+  // Wait for autosave (1 second after a change)
   await page.waitForTimeout(1800);
 
-  // 既定では起動時に前回の作業が自動で開き、注釈ごと戻る
+  // By default the previous work reopens automatically on startup, annotations included
   await reloadAccepting(page);
   await page.waitForSelector('.page img');
   await page.waitForTimeout(500);
   await expect(page.locator('.toolbar .doc-name')).toHaveText('sample-ja-form.pdf');
   expect(await annotationTypes(page)).toEqual([STAMP]);
 
-  // 同じファイルを開き直しても一覧は増えない
+  // Reopening the same file does not add a new entry to the list
   await page.locator('input[type=file]').first().setInputFiles('samples/sample-ja-form.pdf');
   await page.waitForTimeout(800);
   await recentMenu(page).click();
   await expect(page.locator('.recent-row')).toHaveCount(1);
   await recentMenu(page).click();
 
-  // 別のファイルを開いたあと、一覧から元のファイルを開き直すと、それが「最後に使った」扱いになる
+  // After opening another file, reopening the original from the list makes it the most recently used
   await page.locator('input[type=file]').first().setInputFiles('samples/sample-noembed.pdf');
   await page.waitForTimeout(800);
   await recentMenu(page).click();
@@ -46,7 +46,7 @@ test('注釈した状態がリロード後に「最近使ったファイル」�
   await expect(page.locator('.recent-row').first()).toContainText('sample-ja-form.pdf');
   await recentMenu(page).click();
 
-  // 自動再開をオフにすると、空状態に「前回の作業を再開」が出てボタンで開く
+  // With auto-resume off, the empty state shows a "resume previous work" button that opens it
   await page.locator('.toolbar button', { hasText: '設定' }).click();
   await page.locator('.settings-row', { hasText: '自動的に前回の作業を再開' }).locator('input').uncheck();
   await reloadAccepting(page);

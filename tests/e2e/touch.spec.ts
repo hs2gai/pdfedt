@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from '@playwright/test';
 import { sample } from './helpers';
 
-/** スマホ（タッチ・狭い画面）。マウスの「離れる」が無いので、メニューやパネルは外側のタップで閉じられること */
+/** Phones (touch, narrow screen). There is no mouse leave, so menus and panels must close on an outside tap */
 test.use({ ...devices['Pixel 7'] });
 
 const tap = async (page: Page, selector: string) => {
@@ -66,14 +66,14 @@ test('タップ後もボタンの色が保たれる（:hover が残って白背�
     const cs = getComputedStyle(el);
     return { bg: cs.backgroundColor, color: cs.color };
   });
-  // 青（押下中はやや濃い青）のまま。白い hover 背景（#f3f5f8）にはならない
+  // Stays blue (slightly darker while pressed), not the white hover background (#f3f5f8)
   expect(['rgb(26, 115, 232)', 'rgb(21, 88, 184)']).toContain(style.bg);
   expect(style.color).toBe('rgb(255, 255, 255)');
-  // メニューの文字色も明示した色（iOS Safari の既定のアクセント色にならない）
+  // Menu text also uses the explicit color (not iOS Safari's default accent color)
   await expect(page.locator('.menu-list .menu-label').first()).toHaveCSS('color', 'rgb(34, 34, 34)');
 });
 
-/** 合成タッチイベント（Chromium は TouchEvent コンストラクタでマルチタッチを作れる） */
+/** Synthetic touch events (Chromium can build multi-touch with the TouchEvent constructor) */
 const touch = async (page: Page, type: 'touchstart' | 'touchmove' | 'touchend', points: [number, number][]) =>
   page.evaluate(
     ({ type, points }) => {

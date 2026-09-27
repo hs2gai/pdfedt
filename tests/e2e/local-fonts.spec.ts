@@ -4,18 +4,18 @@ import { inflateSync } from 'node:zlib';
 import { openPdf, pageGeometry, saveVia } from './helpers';
 
 /**
- * PC のフォント（Local Font Access API）を非埋め込みフォントの表示・本文編集の置換・注釈の書体に使う。
- * 許可ダイアログは自動化できないので queryLocalFonts を差し替え、Windows の msmincho.ttc（TTC）を
- * 本物のフォントとして流す。TTC の書体特定・fsType 判定・サブセット化・埋め込みまでを通しで確認する。
+ * Local fonts (Local Font Access API) are used to render non-embedded fonts, for content-edit replacement, and as annotation typefaces.
+ * The permission dialog cannot be automated, so queryLocalFonts is stubbed to serve Windows' msmincho.ttc (TTC)
+ * as a real font. Checks end to end: TTC face selection, fsType check, subsetting and embedding.
  */
 const TTC = 'C:\\Windows\\Fonts\\msmincho.ttc';
 
-/** queryLocalFonts を差し替え、設定「PC のフォントを使う」をオンにする */
+/** Stubs queryLocalFonts and turns on the "use local fonts" setting */
 async function enableFakeLocalFonts(page: Page) {
   const ttc = readFileSync(TTC);
   await page.route('**/__local-fonts/msmincho.ttc', (route) => route.fulfill({ body: ttc, contentType: 'font/collection' }));
   await page.addInitScript(() => {
-    // @ts-expect-error テスト用
+    // @ts-expect-error test only
     delete window.showSaveFilePicker;
     const face = (postscriptName: string, fullName: string) => ({
       family: fullName,
@@ -24,20 +24,20 @@ async function enableFakeLocalFonts(page: Page) {
       style: 'Regular',
       blob: () => fetch('/__local-fonts/msmincho.ttc').then((r) => r.blob()),
     });
-    // msmincho.ttc は MS-Mincho(0) と MS-PMincho(1) の 2 書体。PDF は MS-Mincho を参照している
+    // msmincho.ttc holds two faces, MS-Mincho(0) and MS-PMincho(1). The PDF references MS-Mincho
     (window as { queryLocalFonts?: unknown }).queryLocalFonts = async () => [
       face('MS-PMincho', 'MS PMincho'),
       face('MS-Mincho', 'MS Mincho'),
     ];
   });
-  // 設定で有効化（ここで許可ダイアログが出る想定）
+  // Enable in settings (this is where the permission dialog would appear)
   await page.goto('/');
   await page.locator('.toolbar button', { hasText: '設定' }).click();
   await page.locator('.settings-row', { hasText: 'PCのフォント' }).locator('input').check();
   await expect(page.locator('.settings-row', { hasText: 'PCのフォント' }).locator('input')).toBeChecked();
 }
 
-/** 出力 PDF に埋め込まれた FontFile2 をすべて取り出す（Flate 圧縮なら展開） */
+/** Extracts every FontFile2 embedded in the output PDF (inflated if Flate-compressed) */
 function fontFiles(bytes: Buffer): Buffer[] {
   const pdf = bytes.toString('latin1');
   const out: Buffer[] = [];
@@ -56,7 +56,7 @@ test('PC の MS 明朝（TTC）で非埋め込み文書を表示し、同じ書�
   test.skip(!existsSync(TTC), 'MS 明朝が無い環境');
   await enableFakeLocalFonts(page);
 
-  // 開き直す（ページ再読み込み → 設定から一覧を復元 → 開く前に表示用フォントを先読み）
+  // Reopen (page reload -> font list restored from settings -> display fonts preloaded before opening)
   await openPdf(page, 'sample-msmincho.pdf');
   await page.waitForTimeout(500);
   const log: { face: string; source: string }[] = await page.evaluate(() => window.__pdf.runtime.fonts.log);
@@ -68,7 +68,7 @@ test('PC の MS 明朝（TTC）で非埋め込み文書を表示し、同じ書�
   await page.waitForTimeout(400);
   const { box, scale } = await pageGeometry(page);
 
-  // 「この行は表示確認のための見本です。」（MS-Mincho 非埋め込み）をダブルクリック → 既定が「元と同じ」
+  // Double-click the sample line (MS-Mincho, not embedded) -> defaults to "same as original"
   await page.mouse.dblclick(box.x + 80 * scale, box.y + 106 * scale);
   await expect(page.locator('.popover input')).toHaveValue('この行は表示確認のための見本です。');
   await expect(page.locator('.popover select')).toHaveValue('local');
@@ -87,13 +87,13 @@ test('PC の MS 明朝（TTC）で非埋め込み文書を表示し、同じ書�
   ]);
   const bytes = readFileSync((await download.path())!);
 
-  // 埋め込まれた FontFile2 は MS-Mincho（TTC の 1 書体目。PMincho ではない）の小さなサブセット
+  // The embedded FontFile2 is a small subset of MS-Mincho (the first face in the TTC, not PMincho)
   const [ttf] = fontFiles(bytes);
   expect(ttf.includes(utf16('MS-Mincho'))).toBe(true);
   expect(ttf.includes(utf16('MS-PMincho'))).toBe(false);
   expect(ttf.length).toBeLessThan(50_000);
 
-  // 開き直して本文に置換後の文字がある
+  // After reopening, the page content contains the replaced text
   await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
   await page
     .locator('input[type=file]')
@@ -119,7 +119,7 @@ test('テキスト注釈の書体に PC のフォントを選んで埋め込め�
   await page.locator('.toolbar button', { hasText: 'テキスト' }).first().click();
   await page.mouse.click(box.x + 120, box.y + 120);
   await page.waitForSelector('.popover textarea');
-  // 「PC のフォント」のグループに和文向けのフォントが並ぶ
+  // The "local fonts" group lists fonts suitable for Japanese text
   const options = page.locator('.popover select optgroup[label="PCのフォント"] option');
   await expect(options).toHaveText(['MS Mincho', 'MS PMincho']);
   await page.locator('.popover select').first().selectOption('local:MS-Mincho');
@@ -128,7 +128,7 @@ test('テキスト注釈の書体に PC のフォントを選んで埋め込め�
   await page.waitForTimeout(800);
 
   const bytes = await saveVia(page, '注釈付きで保存');
-  // 追記保存なので元文書の BIZ UD の後ろに、注釈用の MS-Mincho サブセットが加わる
+  // Incremental save, so an MS-Mincho subset for the annotation is appended after the original BIZ UD font
   const ttf = fontFiles(bytes).find((f) => f.includes(utf16('MS-Mincho')));
   expect(ttf).toBeDefined();
   expect(ttf!.length).toBeLessThan(50_000);
