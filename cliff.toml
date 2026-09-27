@@ -1,0 +1,64 @@
+# git-cliff 設定ファイル
+# https://git-cliff.org/docs/configuration
+#
+# Conventional Commits（feat:/fix: 等）から次バージョンと CHANGELOG.md の節を生成する。
+# 運用は scripts/release.py を参照（CHANGELOG.md 全体は git-cliff に書かせず、節だけ生成して差し込む）。
+
+[changelog]
+# 節だけを使うので header / footer は空（CHANGELOG.md の冒頭は手書きのまま）
+header = ""
+# 各リリースの本文テンプレート（Tera 構文）
+# コミットハッシュは載せない（公開リポジトリには private 側のハッシュが存在しないため）
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+
+{% for commit in commits %}\
+- {{ commit.message }}
+{% endfor %}\
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+# Conventional Commits 規約に従ってパースする
+conventional_commits = true
+# 規約に従わないコミットは除外する
+filter_unconventional = true
+split_commits = false
+# コミット種別 → 表示グループ（Keep a Changelog の見出し）。<!-- N --> は表示順
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->Added" },
+    { message = "^fix", group = "<!-- 1 -->Fixed" },
+    { message = "^perf", group = "<!-- 2 -->Performance" },
+    { message = "^refactor", group = "<!-- 3 -->Changed" },
+    { message = "^docs", group = "<!-- 4 -->Docs" },
+    { message = "^revert", group = "<!-- 5 -->Reverted" },
+    { body = ".*security", group = "<!-- 6 -->Security" },
+    { message = "^style", skip = true },
+    { message = "^test", skip = true },
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^build", skip = true },
+    { message = ".*", skip = true },
+]
+# 破壊的変更（feat!: / BREAKING CHANGE）を検出 → MAJOR バンプの根拠
+protect_breaking_commits = true
+# タグの形式: v1.2.3
+tag_pattern = "v[0-9].*"
+filter_commits = false
+topo_order = false
+sort_commits = "newest"
+
+[bump]
+# feat → MINOR, fix → PATCH, BREAKING → MAJOR（SemVer 自動判定）
+features_always_bump_minor = true
+breaking_always_bump_major = true
+# タグがまだ無いときの最初のバージョン
+initial_tag = "v0.1.0"

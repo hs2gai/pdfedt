@@ -1,0 +1,15 @@
+node_modules
+dist
+*.local
+.DS_Store
+_*
+!public/_headers
+_spike-out
+test-results
+playwright-report
+.playwright-mcp
+dev-dist
+docs/test.pdf
+*.tsbuildinfo
+.wrangler
+docs/private
