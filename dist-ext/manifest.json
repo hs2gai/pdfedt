@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "pdfedt",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "PDF をどこにも送らずに、ブラウザの中だけで注釈を付けて保存します。開いた PDF を pdfedt で表示します。",
   "icons": {
     "192": "icon-192.png",

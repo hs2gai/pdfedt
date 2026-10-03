@@ -89,7 +89,7 @@ export default defineConfig(({ mode }) => {
           registerType: 'autoUpdate',
           // The CSP forbids inline scripts, so the registration script is loaded from a separate file
           injectRegister: 'script-defer',
-          includeAssets: ['icon-192.png', 'icon-512.png', 'fonts/*'],
+          includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png', 'fonts/*'],
           manifest: {
             name: 'pdfedt',
             short_name: 'pdfedt',
