@@ -124,6 +124,32 @@ os.replace("samples/_tmp.pdf", "samples/sample-mixed-lines.pdf")
 print("ok (mixed-lines)")
 
 
+# ---- sample-scaled-tf.pdf: 「1 Tf」＋テキスト行列で 12pt にする組み方（Word + Acrobat PDFMaker 製 PDF の典型） ----
+# PDFium のゆるい文字ボックスは Tf の値だけで高さを決めるので、12pt の文字に 1pt の箱が付く
+c = canvas.Canvas("samples/sample-scaled-tf.pdf", pagesize=A4)
+for i, line in enumerate(["上記著作物にかかる出版その他の利用等について、", "著作権者を甲とし、出版権者を乙とする。"]):
+    t = c.beginText()
+    t.setFont("BIZUD", 1)
+    t.setTextTransform(12, 0, 0, 12, 60, H - 100 - i * 18)
+    t.textOut(line)
+    c.drawText(t)
+c.save()
+print("ok (scaled-tf)")
+
+
+# ---- sample-watermark.pdf: /Artifact でマークした斜めの透かし（Word の透かしの残骸の再現。本文編集モードの背景扱いの確認用） ----
+c = canvas.Canvas("samples/sample-watermark.pdf", pagesize=A4)
+c.setFont("BIZUD", 12)
+c.drawString(60, H - 100, "透かしの上にある本文です。")
+c._code.append("/Artifact <</Type /Pagination /Subtype /Watermark>> BDC")  # reportlab に marked content の API はない
+c.setStrokeGray(0.95)
+c.setLineWidth(20)
+c.line(100, 200, 500, 700)
+c._code.append("EMC")
+c.save()
+print("ok (watermark)")
+
+
 # ---- sample-pages.pdf: 3 ページ（ページ操作の確認用。各ページに識別用の文字） ----
 c = canvas.Canvas("samples/sample-pages.pdf", pagesize=A4)
 for label in ["ページA", "ページB", "ページC"]:

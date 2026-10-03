@@ -51,7 +51,7 @@ test('本文編集モードで移動・置換・削除して確定保存でき�
   await page.waitForTimeout(800);
 
   // Marquee-select the Reiwa date line and delete it
-  await page.mouse.move(box.x + 440 * scale, box.y + 85 * scale);
+  await page.mouse.move(box.x + 440 * scale, box.y + 70 * scale);
   await page.mouse.down();
   await page.mouse.move(box.x + 560 * scale, box.y + 105 * scale, { steps: 6 });
   await page.mouse.up();
@@ -88,4 +88,32 @@ test('本文編集モードで移動・置換・削除して確定保存でき�
   });
   expect(text).toContain('以上のとおり申請いたします。');
   expect(text).not.toContain('令和');
+});
+
+/**
+ * Non-text objects marked as /Artifact (e.g. leftovers of a Word watermark) are background objects:
+ * hidden and unselectable until "Include watermarks and backgrounds" is checked
+ */
+test('本文編集モードで透かし（背景）は既定で選べず、切り替えると選べる', async ({ page }) => {
+  await openPdf(page, 'sample-watermark.pdf');
+  await page.locator('.toolbar button', { hasText: '本文編集' }).click();
+  await page.locator('.modal button', { hasText: '理解して編集する' }).click();
+  await expect(page.locator('.content-edit-banner')).toBeVisible();
+  await page.waitForTimeout(400);
+  const { box, scale } = await pageGeometry(page);
+  // Inside the bounds of the diagonal watermark line (x 90–510, y 132–652 from the top), away from the body text
+  const at = { x: box.x + 450 * scale, y: box.y + 550 * scale };
+
+  await page.mouse.click(at.x, at.y);
+  await page.waitForTimeout(300);
+  await expect(page.locator('.ce-object.selected')).toHaveCount(0);
+  await expect(page.locator('.ce-background')).toHaveCount(0);
+  // The body text is still selectable
+  await page.mouse.click(box.x + 80 * scale, box.y + 96 * scale);
+  await expect(page.locator('.ce-object.ce-text.selected')).toHaveCount(1);
+
+  await page.locator('.content-edit-banner-toggle input').check();
+  await expect(page.locator('.ce-background')).toHaveCount(1);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('.ce-object.ce-background.selected')).toHaveCount(1);
 });

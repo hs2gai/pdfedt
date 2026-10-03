@@ -4,7 +4,9 @@ import type { WrappedPdfiumModule } from '@embedpdf/pdfium';
 const FORMTYPE_NONE = 0;
 /** fpdf_annot.h */
 const FPDF_ANNOT_WIDGET = 20;
-/** fpdf_doc.h: permission bit 4 = modify contents */
+/** fpdf_doc.h: permission bit 3 = print */
+const PERM_PRINT = 1 << 2;
+/** permission bit 4 = modify contents */
 const PERM_MODIFY = 1 << 3;
 /** permission bit 6 = add / modify annotations, fill forms */
 const PERM_ANNOTATE = 1 << 5;
@@ -33,6 +35,8 @@ export interface DocumentInfo {
   canModify: boolean;
   /** Whether form filling is allowed (some documents allow filling even when annotations are forbidden) */
   canFillForms: boolean;
+  /** Whether printing is allowed */
+  canPrint: boolean;
 }
 
 /**
@@ -86,6 +90,7 @@ export function inspectDocument(m: WrappedPdfiumModule, docPtr: number): Documen
   const canAnnotate = (perms & PERM_ANNOTATE) !== 0;
   const canModify = (perms & PERM_MODIFY) !== 0;
   const canFillForms = canAnnotate || (perms & PERM_FILL_FORMS) !== 0;
+  const canPrint = (perms & PERM_PRINT) !== 0;
 
   // Signature fields are Widgets too, so exclude them from the field count
   return {
@@ -99,5 +104,6 @@ export function inspectDocument(m: WrappedPdfiumModule, docPtr: number): Documen
     canAnnotate,
     canModify,
     canFillForms,
+    canPrint,
   };
 }

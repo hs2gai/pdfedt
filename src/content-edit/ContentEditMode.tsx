@@ -17,7 +17,7 @@ import { findLocalFont, isBoldFace, subsetLocalFont, type LocalFontData } from '
 import { appSettings } from '../app/settings';
 import { PageObjects, type PageObjectInfo, type RemovedObject } from './page-objects';
 import { contentHistory } from './history';
-import { contentEditStore, useContentEditState } from './store';
+import { contentEditStore, pickableObjects, useContentEditState } from './store';
 import { TextReplaceDialog } from './TextReplaceDialog';
 import { useT } from '../i18n';
 
@@ -70,6 +70,7 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
     return list;
   };
   const ensureObjects = (pageIndex: number) => contentEditStore.get().objects[pageIndex] ?? reload(pageIndex);
+  const pickable = (pageIndex: number) => pickableObjects(ensureObjects(pageIndex), contentEditStore.get().showBackground);
   const refresh = (pageIndex: number) => {
     registry?.getStore().dispatchToCore(refreshPages(documentId, [pageIndex]));
     reload(pageIndex);
@@ -108,7 +109,7 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
   }, [interaction]);
 
   const hitTest = (pageIndex: number, pos: Position) => {
-    const hits = ensureObjects(pageIndex).filter((o) => contains(o.rect, pos));
+    const hits = pickable(pageIndex).filter((o) => contains(o.rect, pos));
     // Prefer smaller objects (makes it easier to pick foreground text over a large overlapping background)
     return hits.sort((a, b) => area(a.rect) - area(b.rect))[0];
   };
@@ -226,8 +227,9 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
                 const box = rectFrom(g.start, pos);
                 contentEditStore.set({ marquee: null });
                 if (g.moved) {
-                  const indexes = ensureObjects(pageIndex)
-                    .filter((o) => intersects(o.rect, box))
+                  // Only objects entirely inside the box (large objects such as page-wide shapes are not caught by accident)
+                  const indexes = pickable(pageIndex)
+                    .filter((o) => encloses(box, o.rect))
                     .map((o) => o.index);
                   contentEditStore.set({ selection: indexes.length ? { pageIndex, indexes } : null });
                 }
@@ -316,6 +318,16 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
         {t('content.banner')}
         {selecting ? t('content.banner.selecting') : t('content.banner.otherTool')}
         {selecting && state.selection && t('content.banner.selected', { count: state.selection.indexes.length })}
+        {selecting && (
+          <label className="content-edit-banner-toggle">
+            <input
+              type="checkbox"
+              checked={state.showBackground}
+              onChange={(e) => contentEditStore.set({ showBackground: e.target.checked, selection: null })}
+            />
+            {t('content.banner.showBackground')}
+          </label>
+        )}
       </div>
       {replaceTarget && (
         <TextReplaceDialog
@@ -338,11 +350,12 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
 const contains = (r: Rect, p: Position) =>
   p.x >= r.origin.x && p.x <= r.origin.x + r.size.width && p.y >= r.origin.y && p.y <= r.origin.y + r.size.height;
 const area = (r: Rect) => r.size.width * r.size.height;
-const intersects = (a: Rect, b: Rect) =>
-  a.origin.x < b.origin.x + b.size.width &&
-  a.origin.x + a.size.width > b.origin.x &&
-  a.origin.y < b.origin.y + b.size.height &&
-  a.origin.y + a.size.height > b.origin.y;
+/** Whether inner lies entirely within outer */
+const encloses = (outer: Rect, inner: Rect) =>
+  inner.origin.x >= outer.origin.x &&
+  inner.origin.y >= outer.origin.y &&
+  inner.origin.x + inner.size.width <= outer.origin.x + outer.size.width &&
+  inner.origin.y + inner.size.height <= outer.origin.y + outer.size.height;
 const rectFrom = (a: Position, b: Position): Rect => ({
   origin: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) },
   size: { width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) },

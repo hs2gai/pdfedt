@@ -3,6 +3,7 @@ import { PdfEngine, PdfiumNative, browserImageDataToBlobConverter } from '@embed
 import wasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import { FontProvider } from './fonts/font-provider';
 import { installTextGeometryFix } from './text-geometry';
+import { installRegexSearch } from './regex-search';
 
 /**
  * Holds both EmbedPDF's high-level engine and the raw PDFium module.
@@ -33,5 +34,6 @@ export async function createPdfRuntime(): Promise<PdfRuntime> {
   const engine = new PdfEngine(native, { imageConverter: browserImageDataToBlobConverter });
   const runtime = { engine, native, pdfium, fonts };
   installTextGeometryFix(runtime);
+  installRegexSearch(native);
   return runtime;
 }

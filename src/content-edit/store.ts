@@ -11,6 +11,8 @@ export interface ContentEditState {
   dragDelta: { dx: number; dy: number } | null;
   /** Marquee selection area (pt, top-left origin) */
   marquee: { pageIndex: number; rect: Rect } | null;
+  /** Whether background objects (PageObjectInfo.background) are shown and selectable */
+  showBackground: boolean;
   /** Whether content was rewritten in this mode (used to decide the save kind) */
   edited: boolean;
   /** Number of undoable / redoable operations (updated by history.ts) */
@@ -22,6 +24,7 @@ const initial: ContentEditState = {
   selection: null,
   dragDelta: null,
   marquee: null,
+  showBackground: false,
   edited: false,
   history: { undo: 0, redo: 0 },
 };
@@ -44,6 +47,10 @@ export const contentEditStore = {
     return () => listeners.delete(l);
   },
 };
+
+/** Objects that are shown and selectable (background objects only when the user chose to show them) */
+export const pickableObjects = (list: PageObjectInfo[], showBackground: boolean) =>
+  showBackground ? list : list.filter((o) => !o.background);
 
 export function useContentEditState(): ContentEditState {
   return useSyncExternalStore(contentEditStore.subscribe, contentEditStore.get);

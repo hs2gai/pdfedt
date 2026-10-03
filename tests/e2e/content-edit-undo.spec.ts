@@ -49,7 +49,7 @@ test('本文編集モードで移動・削除・置換を取り消せる', async
   await expect(redoBtn).toBeEnabled();
 
   // Delete, undo from the toolbar, then redo
-  await page.mouse.move(box.x + 440 * scale, box.y + 85 * scale);
+  await page.mouse.move(box.x + 440 * scale, box.y + 70 * scale);
   await page.mouse.down();
   await page.mouse.move(box.x + 560 * scale, box.y + 105 * scale, { steps: 6 });
   await page.mouse.up();

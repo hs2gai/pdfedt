@@ -1,12 +1,12 @@
-import { useContentEditState } from './store';
+import { pickableObjects, useContentEditState } from './store';
 
 /**
  * On-page display for content editing mode (selection frames, movement while dragging, marquee selection).
  * Pointer handling is done by the interaction manager, so this layer only draws.
  */
 export function ContentEditLayer({ pageIndex, scale }: { pageIndex: number; scale: number }) {
-  const { objects, selection, dragDelta, marquee } = useContentEditState();
-  const list = objects[pageIndex] ?? [];
+  const { objects, selection, dragDelta, marquee, showBackground } = useContentEditState();
+  const list = pickableObjects(objects[pageIndex] ?? [], showBackground);
   const selected = selection?.pageIndex === pageIndex ? new Set(selection.indexes) : new Set<number>();
   const dx = (dragDelta?.dx ?? 0) * scale;
   const dy = (dragDelta?.dy ?? 0) * scale;
@@ -18,7 +18,7 @@ export function ContentEditLayer({ pageIndex, scale }: { pageIndex: number; scal
         return (
           <div
             key={o.index}
-            className={`ce-object ce-${o.type}${isSel ? ' selected' : ''}`}
+            className={`ce-object ce-${o.type}${o.background ? ' ce-background' : ''}${isSel ? ' selected' : ''}`}
             style={{
               left: o.rect.origin.x * scale + (isSel ? dx : 0),
               top: o.rect.origin.y * scale + (isSel ? dy : 0),

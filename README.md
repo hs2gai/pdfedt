@@ -23,13 +23,15 @@ A tool for editing PDFs locally, entirely inside your browser, and saving the re
 
 **Use fonts installed on this PC** (settings): when enabled, and the same typeface as the document (MS Mincho, Yu Gothic, …) is installed, it is used to display documents without embedded fonts and to embed text replaced in content editing. Japanese fonts on the PC (IPA, Yu, BIZ UD, …) can also be chosen for text annotations and stamps. The browser reads the fonts directly from the PC and never sends them anywhere. Fonts whose license forbids embedding are not embedded.
 
-**Page operations** (thumbnails on the left): click to select and press the `Delete` key to remove, drag to reorder, drop a PDF file onto the thumbnails to insert its pages at that position. After changing pages the document is saved as a new file, just like after content editing.
+**Page operations** (thumbnails on the left): click to select and press the `Delete` key to remove, drag to reorder, drop a PDF file onto the thumbnails to insert its pages at that position. The rotate buttons on the toolbar turn the current page 90° left or right. After changing pages the document is saved as a new file, just like after content editing.
+
+**Search, print and page navigation**: the magnifier (`Ctrl+F`) finds text in the document and steps through the matches; `Aa` in the search bar matches case and `.*` searches with a regular expression (e.g. `Article \d+`). The printer (`Ctrl+P`) prints with annotations and form entries (each page is printed as a 150 dpi image, so text is printed as an image). Type a number in the page box and press `Enter` to go to that page.
 
 **Password-protected PDFs**: enter the password when opening (the password is never stored or sent). Saved files keep the same password. "Save ▾" → "Save with password…" creates a new PDF that needs a password to open (AES-256; as a new file or finalized). Note that the password features come with no warranty.
 
 Touch: one finger works the tools (select text / annotations, place stamps), **two fingers scroll, pinch to zoom**. Ctrl + mouse wheel also zooms.
 
-Keyboard: `Delete` remove / `Ctrl+Z` undo / `Ctrl+Y` redo / `Esc` back to the select tool / `Ctrl+Enter` confirms while typing text
+Keyboard: `Delete` remove / `Ctrl+C` copy the selected text, area or annotations / `Ctrl+V` paste copied annotations / `Ctrl+F` search / `Ctrl+P` print / `Ctrl+Z` undo / `Ctrl+Y` redo / `Esc` back to the select tool / `Ctrl+Enter` confirms while typing text
 
 ## Language
 

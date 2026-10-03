@@ -3,13 +3,27 @@ import { wasmUtils } from './wasm-utils';
 import { t } from '../i18n';
 
 /**
- * Page structure operations (delete, reorder, import another PDF). Uses raw PDFium directly.
+ * Page structure operations (delete, reorder, rotate, import another PDF). Uses raw PDFium directly.
  * The caller then builds full-save bytes and reopens the document (matching each of EmbedPDF's
  * page list / annotation / thumbnail states individually is fragile).
  */
 
 export function deletePage(m: WrappedPdfiumModule, docPtr: number, index: number): void {
   m.FPDFPage_Delete(docPtr, index);
+}
+
+/**
+ * Rotates a page by quarter turns (1 = 90° clockwise, -1 = counterclockwise) by rewriting its /Rotate.
+ * Annotations keep their page coordinates and turn with the page
+ */
+export function rotatePage(m: WrappedPdfiumModule, docPtr: number, index: number, quarterTurns: number): void {
+  const page = m.FPDF_LoadPage(docPtr, index);
+  if (!page) throw new Error(t('pages.rotateFailed'));
+  try {
+    m.FPDFPage_SetRotation(page, (((m.FPDFPage_GetRotation(page) + quarterTurns) % 4) + 4) % 4);
+  } finally {
+    m.FPDF_ClosePage(page);
+  }
 }
 
 /**

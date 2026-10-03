@@ -15,6 +15,7 @@ import { Brand } from '../app/Brand';
 import { appSettings, useAppSettings } from '../app/settings';
 import { useDismiss } from '../shared/useDismiss';
 import { useT, type MessageKey } from '../i18n';
+import { PageNavigator } from '../viewer/PageNavigator';
 
 interface Props {
   runtime: PdfRuntime;
@@ -33,6 +34,17 @@ interface Props {
   /** Document permissions (permission bits of an encrypted document). Disables buttons for forbidden operations */
   canAnnotate: boolean;
   canModify: boolean;
+  /** Rotates the current page by quarter turns. Omitted when pages cannot be changed (content editing, permissions, signatures) */
+  onRotatePage?: (quarterTurns: 1 | -1) => void;
+  /** A page operation is running (rotate buttons wait for it) */
+  pagesBusy?: boolean;
+  searchOpen: boolean;
+  onToggleSearch: () => void;
+  /** Whether the document allows printing */
+  canPrint: boolean;
+  /** Page images are being prepared for printing */
+  printing: boolean;
+  onPrint: () => void;
 }
 
 /** Tool list. Labels and descriptions come from i18n: tool.<id> / tool.<id>.help */
@@ -177,6 +189,13 @@ export function Toolbar({
   onToggleContentEdit,
   canAnnotate,
   canModify,
+  onRotatePage,
+  pagesBusy,
+  searchOpen,
+  onToggleSearch,
+  canPrint,
+  printing,
+  onPrint,
 }: Props) {
   const tr = useT();
   return (
@@ -194,8 +213,23 @@ export function Toolbar({
             active={showThumbs}
             onClick={onToggleThumbs}
           />
+          <PageNavigator documentId={documentId} />
           <span className="sep" />
           <ZoomButtons documentId={documentId} />
+          <IconButton
+            icon="rotateLeft"
+            label={tr('toolbar.rotateLeft')}
+            title={onRotatePage ? tr('toolbar.rotateLeft.help') : tr('toolbar.rotate.blocked')}
+            disabled={!onRotatePage || pagesBusy}
+            onClick={() => onRotatePage?.(-1)}
+          />
+          <IconButton
+            icon="rotateRight"
+            label={tr('toolbar.rotateRight')}
+            title={onRotatePage ? tr('toolbar.rotateRight.help') : tr('toolbar.rotate.blocked')}
+            disabled={!onRotatePage || pagesBusy}
+            onClick={() => onRotatePage?.(1)}
+          />
           <span className="sep" />
           {TOOLS.map((t) => {
             if (t.id === 'content' && !contentEdit) return null; // content editing mode only
@@ -242,6 +276,20 @@ export function Toolbar({
           <span className="doc-name" title={documentName}>
             {documentName}
           </span>
+          <IconButton
+            icon="search"
+            label={tr('toolbar.search')}
+            title={tr('toolbar.search.help')}
+            active={searchOpen}
+            onClick={onToggleSearch}
+          />
+          <IconButton
+            icon="print"
+            label={tr('toolbar.print')}
+            title={canPrint ? tr('toolbar.print.help') : tr('toolbar.print.blocked')}
+            disabled={!canPrint || printing}
+            onClick={onPrint}
+          />
           <SaveMenu
             runtime={runtime}
             documentId={documentId}

@@ -158,6 +158,10 @@
 > **PC のフォントで置換（2026-09-21 追加）**: 設定「PC のフォントを使う」をオンにすると Local Font Access API（Chrome / Edge のみ）でフォントを読み、元の BaseFont と同名の書体があれば「元と同じ」を既定選択にして埋め込む（`src/pdf/fonts/local-fonts.ts`, `sfnt.ts`）。TTC は書体を特定、OS/2 fsType で埋め込み禁止のものは使わない。フォントは外部に送らず、必要な文字のサブセットだけ埋め込む
 > **非埋め込みフォントの表示（2026-09-21 追加）**: EmbedPDF の `fontFallback` は文字集合だけで選びフォント名を見ないため、自前の `FPDF_SYSFONTINFO`（`src/pdf/fonts/font-provider.ts`）に置き換えた。文書を開く前に生 API で非埋め込みフォントを列挙し（`display-fonts.ts`）、名前が一致する PC のフォント（設定オン時）→ 明朝系なら同梱の明朝 → ゴシックの順で先読みして返す。PDFium は置換結果を書体名でキャッシュするので、走査中は何も返さず、`GetFaceName` で供給元をキーに含める
 > **ページ操作（2026-09-21 追加）**: サムネイルで選んで Delete で削除（確認あり）、ドラッグで並べ替え、PDF を落として取り込み（`src/pdf/pages.ts`: `FPDFPage_Delete` / `FPDF_MovePages` / `FPDF_ImportPagesByIndex`）。EmbedPDF の各プラグイン状態を個別に合わせるのは壊れやすいので、操作後は新ファイル保存相当のバイト列で文書を開き直す（`src/app/usePageOperations.tsx`）。本文編集と同じ「編集済み」扱いで追記保存は不可・新ファイルで保存は別名。Undo なし。署名で変更禁止の文書と本文編集モード中は不可
+>
+> **ページの回転（2026-10-03 追加）**: ツールバーの左右の回転ボタンで表示中のページを 90° 回す（`rotatePage`: `FPDFPage_SetRotation` で /Rotate を書き換え）。他のページ操作と同じく開き直し・追記保存不可。EmbedPDF の `Scroller` は回転後の大きさで枠を取るだけなので、`PdfPages.tsx` でページ要素に CSS の回転を掛ける（/Rotate 付きの PDF を開いたときの表示崩れも同時に直る）。開き直し直後は現在ページが 1 になるため、対象ページへ戻るまで次のページ操作は受け付けない
+>
+> **検索・印刷・ページ番号（2026-10-03 追加）**: 検索は `@embedpdf/plugin-search`（PDFium の FPDFText_Find。入力から 250ms 後に全ページ検索、`SearchLayer` でハイライト、現在の一致へスクロール）。Ctrl+F / Ctrl+P はブラウザ標準を止めて自前の機能を開く。印刷は `@embedpdf/plugin-print` を使わない（PDF を blob の iframe に入れてブラウザの PDF ビューアで印刷する方式で、CSP の `object-src 'none'` と frame の制限に掛かる）。代わりに各ページを 150dpi の PNG に描画して `#print-pages` に並べ、`@media print` でそれだけを 1 ページ 1 枚に収めて `window.print()`（`src/viewer/print.ts`）。注釈・フォーム値・/Rotate を反映し、CSP は変えない。文字は画像として印刷される。ページ番号はツールバーの入力欄（全角数字可、範囲外は端に寄せる）
 - ゲートダイアログ、モード表示、選択制御（§5）
 - 矩形選択 → 移動 / 削除（S6 の成果を製品化）
 - テキスト置換 A → B → C の順に実装。フォント状況の事前判定 UI

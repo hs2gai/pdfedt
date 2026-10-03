@@ -7,14 +7,20 @@ import { withTextPage } from './raw';
 
 /**
  * Correction of character rectangles (the basis of selection, highlight, underline and strikeout).
- * EmbedPDF uses FPDFText_GetLooseCharBox, but that box is built from the font-wide FontBBox, so
- * Latin text set in a CJK font (e.g. "Linux" in Harano Aji) gets a 29pt box for 10pt characters,
- * overlapping the neighboring line vertically so lines merge or an underline covers the next line.
- * Only boxes clearly too tall for the font size are replaced with a 1 em box based on the baseline.
+ * EmbedPDF uses FPDFText_GetLooseCharBox, which goes wrong in two ways:
+ * - Too tall: the box is built from the font-wide FontBBox, so Latin text set in a CJK font
+ *   (e.g. "Linux" in Harano Aji) gets a 29pt box for 10pt characters, overlapping the neighboring line.
+ * - Too short: the height is the raw Tf size and ignores the text matrix scale, so PDFs that set
+ *   "1 Tf" and put the real size in Tm (Word + Acrobat PDFMaker: "/C2_0 1 Tf 12 0 0 12 x y Tm")
+ *   get 1pt boxes for 12pt characters, and a highlight shrinks to a thin line.
+ * Such boxes are replaced with a 1 em box based on the baseline, using the effective font size
+ * (Tf size × vertical scale of the character matrix).
  */
 
-/** Boxes taller than this (relative to the font size) are treated as abnormal. Normal Japanese boxes are 0.9–1.1× */
+/** Boxes taller than this (relative to the effective font size) are treated as abnormal. Normal Japanese boxes are 0.9–1.1× */
 const TALL_RATIO = 1.6;
+/** Boxes shorter than this (relative to the effective font size) are treated as abnormal */
+const SHORT_RATIO = 0.5;
 /** Replacement box: 0.88 em above and 0.12 em below the baseline (typical ascent / descent of Japanese fonts) */
 const ASCENT = 0.88;
 
@@ -24,17 +30,19 @@ export function installTextGeometryFix(runtime: PdfRuntime): void {
   engine.getPageGeometry = (doc: PdfDocumentObject, page: PdfPageObject): PdfTask<PdfPageGeometry> => {
     const task = PdfTaskHelper.create<PdfPageGeometry>();
     original(doc, page).wait(
-      (geo) => task.resolve(fixTallGlyphs(runtime, doc, page, geo)),
+      (geo) => task.resolve(fixGlyphBoxes(runtime, doc, page, geo)),
       (e) => task.fail(e),
     );
     return task;
   };
 }
 
-function fixTallGlyphs(runtime: PdfRuntime, doc: PdfDocumentObject, page: PdfPageObject, geo: PdfPageGeometry): PdfPageGeometry {
+function fixGlyphBoxes(runtime: PdfRuntime, doc: PdfDocumentObject, page: PdfPageObject, geo: PdfPageGeometry): PdfPageGeometry {
+  // Cheap pre-filter without PDFium calls: too tall for the Tf size, or smaller than the glyph's own tight box
+  // (a loose box never is, unless the text matrix scale was ignored)
   const suspicious = geo.runs.filter((run) => {
     const fs = run.fontSize ?? 0;
-    return fs > 0 && run.glyphs.some((g) => g.height > fs * TALL_RATIO);
+    return fs > 0 && run.glyphs.some((g) => g.height > fs * TALL_RATIO || (g.tightHeight ?? 0) > g.height + 1);
   });
   if (suspicious.length === 0) return geo;
 
@@ -45,10 +53,19 @@ function fixTallGlyphs(runtime: PdfRuntime, doc: PdfDocumentObject, page: PdfPag
     const yPtr = u.malloc(8);
     const dxPtr = u.malloc(4);
     const dyPtr = u.malloc(4);
+    const matrixPtr = u.malloc(24);
     try {
       for (const run of suspicious) fixRun(run);
     } finally {
-      [xPtr, yPtr, dxPtr, dyPtr].forEach(u.free);
+      [xPtr, yPtr, dxPtr, dyPtr, matrixPtr].forEach(u.free);
+    }
+
+    /** Tf size × vertical scale of the character matrix (FS_MATRIX {a, b, c, d, e, f} as floats) */
+    function effectiveFontSize(charIndex: number, fs: number): number {
+      if (!m.FPDFText_GetMatrix(textPagePtr, charIndex, matrixPtr)) return fs;
+      const c = m.pdfium.getValue(matrixPtr + 8, 'float');
+      const d = m.pdfium.getValue(matrixPtr + 12, 'float');
+      return fs * (Math.hypot(c, d) || 1);
     }
 
     function fixRun(run: PdfRun) {
@@ -56,7 +73,9 @@ function fixTallGlyphs(runtime: PdfRuntime, doc: PdfDocumentObject, page: PdfPag
       let minY = Infinity;
       let maxY = -Infinity;
       run.glyphs.forEach((g, i) => {
-        if (g.height <= fs * TALL_RATIO) return;
+        if (g.width === 0 && g.height === 0) return;
+        const size = effectiveFontSize(run.charStart + i, fs);
+        if (g.height <= size * TALL_RATIO && g.height >= size * SHORT_RATIO) return;
         if (!m.FPDFText_GetCharOrigin(textPagePtr, run.charStart + i, xPtr, yPtr)) return;
         // Convert the baseline point to page coordinates with a top-left origin (same transform as readGlyphInfo; rotation is handled too)
         m.FPDF_PageToDevice(
@@ -72,8 +91,8 @@ function fixTallGlyphs(runtime: PdfRuntime, doc: PdfDocumentObject, page: PdfPag
           dyPtr,
         );
         const baseline = m.pdfium.getValue(dyPtr, 'i32');
-        g.y = Math.round(baseline - fs * ASCENT);
-        g.height = Math.round(fs);
+        g.y = Math.round(baseline - size * ASCENT);
+        g.height = Math.round(size);
       });
       for (const g of run.glyphs) {
         if (g.width === 0 && g.height === 0) continue;

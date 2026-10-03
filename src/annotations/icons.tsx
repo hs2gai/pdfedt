@@ -144,6 +144,35 @@ export const Icons = {
       <path d="M11 5h8v8" />
     </>,
   ),
+  rotateLeft: base(
+    <>
+      <rect x="9" y="11" width="11" height="9" rx="1" />
+      <path d="M15 5H9a5 5 0 0 0-5 5v3" />
+      <path d="m1 10 3 3 3-3" />
+    </>,
+  ),
+  rotateRight: base(
+    <>
+      <rect x="4" y="11" width="11" height="9" rx="1" />
+      <path d="M9 5h6a5 5 0 0 1 5 5v3" />
+      <path d="m17 10 3 3 3-3" />
+    </>,
+  ),
+  search: base(
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>,
+  ),
+  print: base(
+    <>
+      <path d="M7 9V4h10v5" />
+      <rect x="4" y="9" width="16" height="8" rx="1.5" />
+      <path d="M7 14h10v6H7z" />
+    </>,
+  ),
+  chevronUp: base(<path d="m6 15 6-6 6 6" />),
+  chevronDown: base(<path d="m6 9 6 6 6-6" />),
   trash: base(
     <>
       <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />

@@ -11,6 +11,7 @@ import { HistoryPluginPackage } from '@embedpdf/plugin-history/react';
 import { AnnotationPluginPackage } from '@embedpdf/plugin-annotation/react';
 import { ThumbnailPluginPackage } from '@embedpdf/plugin-thumbnail/react';
 import { FormPluginPackage } from '@embedpdf/plugin-form/react';
+import { SearchPluginPackage } from '@embedpdf/plugin-search/react';
 import type { PdfRuntime } from '../pdf/engine';
 import { EditorShell } from './EditorShell';
 import { DEFAULT_LOCK } from '../annotations/tools-setup';
@@ -25,6 +26,7 @@ const plugins = [
   createPluginRegistration(ThumbnailPluginPackage, { width: 110, gap: 10, labelHeight: 18, paddingY: 8 }),
   createPluginRegistration(InteractionManagerPluginPackage),
   createPluginRegistration(SelectionPluginPackage),
+  createPluginRegistration(SearchPluginPackage),
   createPluginRegistration(HistoryPluginPackage),
   // AcroForm filling (draws form widgets inside the annotation layer)
   createPluginRegistration(FormPluginPackage),

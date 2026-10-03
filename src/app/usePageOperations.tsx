@@ -4,7 +4,7 @@ import type { ScrollCapability } from '@embedpdf/plugin-scroll';
 import type { PdfRuntime } from '../pdf/engine';
 import { getDocPtr } from '../pdf/raw';
 import { exportDocument, openPasswordOf } from '../pdf/export';
-import { deletePage, importPdf, movePage } from '../pdf/pages';
+import { deletePage, importPdf, movePage, rotatePage } from '../pdf/pages';
 import type { RecentMeta } from './recent-store';
 import { useT } from '../i18n';
 
@@ -21,17 +21,21 @@ interface Options {
 }
 
 /**
- * Page operations from the thumbnails (delete, reorder, add a PDF).
+ * Page operations from the thumbnails and the toolbar (delete, reorder, rotate, add a PDF).
  * After changing the page structure with raw PDFium, reopen the document from bytes equivalent to a full save.
  * Reopening keeps annotations, thumbnails and scroll state consistent, and the document is treated like
  * "content edited" (no incremental save; full save uses a new name).
  */
 export function usePageOperations({ runtime, documentId, annotations, scroll, entry, reopen, onStatus }: Options) {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // From the start of an operation until the view is back on the affected page. Meanwhile the current page reads as
+  // page 1 (the document was reopened), so further operations are not accepted
+  const [busy, setBusy] = useState(false);
   const t = useT();
 
   const restructure = async (label: string, op: (docPtr: number) => void, focusPage: number) => {
-    if (!documentId || !entry) return;
+    if (!documentId || !entry || busy) return;
+    setBusy(true);
     try {
       // Flush uncommitted annotation changes to PDFium before changing the structure
       await annotations?.forDocument(documentId).commit().toPromise();
@@ -40,9 +44,13 @@ export function usePageOperations({ runtime, documentId, annotations, scroll, en
       await reopen(bytes, { ...entry, size: bytes.byteLength, contentEdited: true }, openPasswordOf(documentId) || undefined);
       onStatus(t('pages.restructured', { label }));
       // Wait for the re-render after reopening, then go to the affected page
-      window.setTimeout(() => scroll?.scrollToPage({ pageNumber: focusPage + 1, behavior: 'instant' }), 300);
+      window.setTimeout(() => {
+        scroll?.scrollToPage({ pageNumber: focusPage + 1, behavior: 'instant' });
+        setBusy(false);
+      }, 300);
     } catch (e) {
       onStatus(t('pages.failed', { label, message: (e as Error).message }));
+      setBusy(false);
     }
   };
 
@@ -58,6 +66,12 @@ export function usePageOperations({ runtime, documentId, annotations, scroll, en
       to > from ? to - 1 : to,
     );
   };
+  const doRotate = (index: number, quarterTurns: 1 | -1) =>
+    void restructure(
+      t(quarterTurns > 0 ? 'pages.rotatedRight' : 'pages.rotatedLeft', { page: index + 1 }),
+      (doc) => rotatePage(runtime.pdfium, doc, index, quarterTurns),
+      index,
+    );
   const doImport = async (file: File, insertIndex: number) => {
     const bytes = new Uint8Array(await file.arrayBuffer());
     let count = 0;
@@ -95,6 +109,8 @@ export function usePageOperations({ runtime, documentId, annotations, scroll, en
   return {
     requestDelete: (index: number) => setConfirmDelete(index),
     movePage: doMove,
+    rotatePage: doRotate,
+    busy,
     importPdf: (file: File, insertIndex: number) => void doImport(file, insertIndex),
     dialog,
   };

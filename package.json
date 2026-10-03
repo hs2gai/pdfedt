@@ -1,7 +1,7 @@
 {
   "name": "pdfedt",
   "private": true,
-  "version": "0.4.5",
+  "version": "0.5.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -33,6 +33,7 @@
     "@embedpdf/plugin-interaction-manager": "^2.15.1",
     "@embedpdf/plugin-render": "^2.15.1",
     "@embedpdf/plugin-scroll": "^2.15.1",
+    "@embedpdf/plugin-search": "^2.15.1",
     "@embedpdf/plugin-selection": "^2.15.1",
     "@embedpdf/plugin-thumbnail": "^2.15.1",
     "@embedpdf/plugin-viewport": "^2.15.1",

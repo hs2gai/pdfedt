@@ -4,10 +4,15 @@ import { useAnnotationCapability } from '@embedpdf/plugin-annotation/react';
 import { useFormCapability } from '@embedpdf/plugin-form/react';
 import { useViewportCapability } from '@embedpdf/plugin-viewport/react';
 import { useScrollCapability } from '@embedpdf/plugin-scroll/react';
+import { useSelectionCapability } from '@embedpdf/plugin-selection/react';
+import { useRenderCapability } from '@embedpdf/plugin-render/react';
 import { useRegistry } from '@embedpdf/core/react';
 import type { PdfRuntime } from '../pdf/engine';
 import { PdfPages } from '../viewer/PdfPages';
+import { copySelection, regionStore, useRegionSelection } from '../viewer/RegionSelection';
 import { ThumbnailSidebar } from '../viewer/ThumbnailSidebar';
+import { SearchBar } from '../viewer/SearchBar';
+import { printDocument } from '../viewer/print';
 import { Toolbar } from '../annotations/Toolbar';
 import { TextJaTool } from '../annotations/text-ja/TextJaTool';
 import { StampTool } from '../annotations/stamps/StampTool';
@@ -15,6 +20,7 @@ import { useDropZone } from './useDropZone';
 import { useOpenFromUrl } from './useOpenFromUrl';
 import { exportDocument, registerOpenedDocument, forgetDocument, rememberPassword } from '../pdf/export';
 import { configureAnnotationTools } from '../annotations/tools-setup';
+import { clearAnnotationClipboard, copyAnnotations, hasAnnotationClipboard, pasteAnnotations } from '../annotations/clipboard';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { DocumentBadges } from './DocumentBadges';
 import { useDocumentInfo } from './useDocumentInfo';
@@ -218,7 +224,80 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
   };
   // Even in content editing mode, annotations can be created / edited as usual while a tool other than "Content" is selected
   const contentSelecting = contentEdit === 'on' && tool === 'content';
-  useKeyboardShortcuts({ documentId: activeDocumentId, contentEdit: contentSelecting, onEscape: () => selectTool(contentEdit === 'on' ? 'content' : 'select') });
+  // Text selection or a region dragged on empty space with the select tool → Ctrl+C
+  const { provides: selectionCap } = useSelectionCapability();
+  const { provides: renderCap } = useRenderCapability();
+  useRegionSelection(activeDocumentId, tool === 'select');
+  const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  const copy = () => {
+    // Text or a kept region first (a marquee also selects the annotations it touches; the region image includes them)
+    const job = activeDocumentId && selectionCap && renderCap && copySelection(selectionCap, renderCap, activeDocumentId);
+    if (!job) {
+      // Otherwise the selected annotations (Ctrl+V pastes them back as copies)
+      const doc = activeDocument?.document;
+      if (!activeDocumentId || !annotations || !doc || contentSelecting) return false;
+      const scope = annotations.forDocument(activeDocumentId);
+      const count = copyAnnotations(runtime, scope, doc, scope.getSelectedAnnotations());
+      if (count) setStatus(t('copy.annotations', { count }));
+      return count > 0;
+    }
+    // Copying text / an image replaces what Ctrl+V should paste
+    clearAnnotationClipboard();
+    job.then(
+      (kind) => setStatus(t(kind === 'text' ? 'copy.text' : 'copy.image')),
+      (e: unknown) => setStatus(t('copy.failed', { message: errorText(e) })),
+    );
+    return true;
+  };
+  // Text search (Ctrl+F). focusKey moves the focus back to an already open bar
+  const [search, setSearch] = useState<{ open: boolean; focusKey: number }>({ open: false, focusKey: 0 });
+  const openSearch = () => setSearch((s) => ({ open: true, focusKey: s.focusKey + 1 }));
+  const closeSearch = () => setSearch((s) => ({ ...s, open: false }));
+  // Printing renders every page first; one run at a time
+  const [printing, setPrinting] = useState(false);
+  const canPrint = loaded && (info?.canPrint ?? true);
+  const print = async () => {
+    const doc = activeDocument?.document;
+    if (!activeDocumentId || !doc || !renderCap || printing) return;
+    if (!canPrint) return setStatus(t('toolbar.print.blocked'));
+    setPrinting(true);
+    try {
+      // Flush annotation changes so the page images include them
+      await annotations?.forDocument(activeDocumentId).commit().toPromise();
+      await printDocument(renderCap, doc, (done, total) => setStatus(t('print.preparing', { done, total })));
+      setStatus('');
+    } catch (e) {
+      setStatus(t('print.failed', { message: errorText(e) }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+  const paste = () => {
+    const doc = activeDocument?.document;
+    if (!activeDocumentId || !annotations || !doc || !scrollCap || contentSelecting || !hasAnnotationClipboard()) return false;
+    if (info && !info.canAnnotate) {
+      setStatus(t('toolbar.annotateBlocked'));
+      return true;
+    }
+    const pageIndex = scrollCap.forDocument(activeDocumentId).getCurrentPage() - 1;
+    pasteAnnotations(annotations.forDocument(activeDocumentId), doc, pageIndex).then(
+      (count) => count && setStatus(t('paste.annotations', { count })),
+      (e: unknown) => setStatus(t('paste.failed', { message: errorText(e) })),
+    );
+    return true;
+  };
+  useKeyboardShortcuts({
+    documentId: activeDocumentId,
+    contentEdit: contentSelecting,
+    onEscape: () => {
+      regionStore.set(null);
+      selectTool(contentEdit === 'on' ? 'content' : 'select');
+    },
+    onCopy: copy,
+    onPaste: paste,
+    onFind: openSearch,
+    onPrint: () => void print(),
+  });
 
   // Page operations from the thumbnails. Not allowed for signature-locked documents or during content editing
   const pageOps = usePageOperations({
@@ -256,7 +335,21 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
         }}
         canAnnotate={info?.canAnnotate ?? true}
         canModify={info?.canModify ?? true}
+        onRotatePage={
+          pagesEditable && activeDocumentId && scrollCap
+            ? (turns) => pageOps.rotatePage(scrollCap.forDocument(activeDocumentId).getCurrentPage() - 1, turns)
+            : undefined
+        }
+        pagesBusy={pageOps.busy}
+        searchOpen={search.open}
+        onToggleSearch={() => (search.open ? closeSearch() : openSearch())}
+        canPrint={canPrint}
+        printing={printing}
+        onPrint={() => void print()}
       />
+      {search.open && activeDocumentId && loaded && (
+        <SearchBar key={activeDocumentId} documentId={activeDocumentId} focusKey={search.focusKey} onClose={closeSearch} />
+      )}
       {loaded && <DocumentBadges info={info} />}
       {contentEdit === 'gate' && (
         <ContentEditGate

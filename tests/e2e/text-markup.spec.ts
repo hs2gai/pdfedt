@@ -35,3 +35,31 @@ test('複数行のハイライトが行ごとの矩形になる（FontBBox が�
   const [a, b] = [...segs].sort((p, q) => p.origin.y - q.origin.y);
   expect(a.origin.y + a.size.height).toBeLessThanOrEqual(b.origin.y + 1);
 });
+
+/**
+ * PDFs that set "1 Tf" and put the real size in the text matrix (Word + Acrobat PDFMaker) get 1pt char boxes
+ * from PDFium. The correction scales them by the matrix, so the highlight covers the 12pt characters
+ */
+test('「1 Tf」＋テキスト行列で拡大した文字でもハイライトが文字の高さになる', async ({ page }) => {
+  await openPdf(page, 'sample-scaled-tf.pdf');
+  const { box, scale } = await pageGeometry(page);
+
+  // Line 1: 12pt, baseline y=100 (top-left origin)
+  await selectTool(page, 'ハイライト');
+  await page.mouse.move(box.x + 80 * scale, box.y + 96 * scale);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 200 * scale, box.y + 96 * scale, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+
+  const segs: Seg[] = await page.evaluate(() =>
+    window.__pdf.annotations.getAnnotations().flatMap((a: { object: { segmentRects: Seg[] } }) => a.object.segmentRects),
+  );
+  expect(segs).toHaveLength(1);
+  expect(segs[0].size.height).toBeGreaterThanOrEqual(10);
+  expect(segs[0].size.height).toBeLessThanOrEqual(14);
+  // The rect covers the baseline and does not reach line 2 (baseline y=118, top about 107)
+  expect(segs[0].origin.y).toBeLessThan(100);
+  expect(segs[0].origin.y + segs[0].size.height).toBeGreaterThanOrEqual(100);
+  expect(segs[0].origin.y + segs[0].size.height).toBeLessThanOrEqual(107);
+});

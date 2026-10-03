@@ -8,6 +8,10 @@ const OBJ_TYPES: PageObjectType[] = ['unknown', 'text', 'path', 'image', 'shadin
 const FPDF_FONT_TRUETYPE = 2;
 /** fpdf_edit.h: FPDF_TEXTRENDERMODE_FILL_STROKE */
 const FPDF_TEXTRENDERMODE_FILL_STROKE = 2;
+/** fpdf_edit.h: FPDF_TEXTRENDERMODE_INVISIBLE (e.g. the OCR text layer of scanned PDFs) */
+const FPDF_TEXTRENDERMODE_INVISIBLE = 3;
+/** fpdf_edit.h: FPDF_FILLMODE_NONE */
+const FPDF_FILLMODE_NONE = 0;
 
 /** Object detached from the page (original index and FPDF_PAGEOBJECT) */
 export interface RemovedObject {
@@ -25,6 +29,12 @@ export interface PageObjectInfo {
   fontSize?: number;
   /** Original font (hint for choosing a similar typeface when replacing) */
   font?: { name: string; flags: number; weight: number };
+  /**
+   * Watermarks, page decorations and invisible objects. Hidden and unselectable in content editing mode
+   * unless the user chooses to show them (they get in the way, e.g. leftovers of a Word watermark
+   * whose diagonal bounds cover the whole page)
+   */
+  background: boolean;
 }
 
 /**
@@ -59,6 +69,7 @@ export class PageObjects {
           index: i,
           type,
           rect: { origin: { x: left, y: this.pageHeight - top }, size: { width: right - left, height: top - bottom } },
+          background: this.isBackground(obj, type),
         };
         if (type === 'text') {
           info.text = this.readText(obj);
@@ -147,6 +158,51 @@ export class PageObjects {
     return { index, obj: old };
   }
 
+  /**
+   * Non-text objects marked as /Artifact (watermarks, backgrounds, header / footer decorations; text there such as
+   * page headers stays editable), and objects that draw nothing visible
+   */
+  private isBackground(obj: number, type: PageObjectType): boolean {
+    return (type !== 'text' && this.hasMark(obj, 'Artifact')) || this.isInvisible(obj, type);
+  }
+
+  private hasMark(obj: number, name: string): boolean {
+    const m = this.m;
+    const n = m.FPDFPageObj_CountMarks(obj);
+    if (n <= 0) return false;
+    const len = 256;
+    const p = this.u.malloc(len + 4);
+    try {
+      for (let i = 0; i < n; i++) {
+        const mark = m.FPDFPageObj_GetMark(obj, i);
+        // The name is UTF-16LE with a terminating NUL
+        if (mark && m.FPDFPageObjMark_GetName(mark, p, len, p + len) && m.pdfium.UTF16ToString(p) === name) return true;
+      }
+      return false;
+    } finally {
+      this.u.free(p);
+    }
+  }
+
+  /** Only cases that can be decided for sure: invisible text render mode, or every painted part fully transparent */
+  private isInvisible(obj: number, type: PageObjectType): boolean {
+    const m = this.m;
+    if (type === 'text') {
+      if (m.FPDFTextObj_GetTextRenderMode(obj) === FPDF_TEXTRENDERMODE_INVISIBLE) return true;
+      return this.readFillColor(obj).a === 0 && this.readStrokeColor(obj).a === 0;
+    }
+    if (type !== 'path') return false;
+    const p = this.u.malloc(8);
+    try {
+      if (!m.FPDFPath_GetDrawMode(obj, p, p + 4)) return false;
+      const fills = m.pdfium.getValue(p, 'i32') !== FPDF_FILLMODE_NONE && this.readFillColor(obj).a > 0;
+      const strokes = m.pdfium.getValue(p + 4, 'i32') !== 0 && this.readStrokeColor(obj).a > 0;
+      return !fills && !strokes;
+    } finally {
+      this.u.free(p);
+    }
+  }
+
   private readText(obj: number): string {
     const m = this.m;
     const textPage = m.FPDFText_LoadPage(this.pagePtr);
@@ -205,9 +261,18 @@ export class PageObjects {
   }
 
   private readFillColor(obj: number) {
+    return this.readColor(obj, 'fill');
+  }
+
+  private readStrokeColor(obj: number) {
+    return this.readColor(obj, 'stroke');
+  }
+
+  private readColor(obj: number, kind: 'fill' | 'stroke') {
     const p = this.u.malloc(16);
     try {
-      const ok = this.m.FPDFPageObj_GetFillColor(obj, p, p + 4, p + 8, p + 12);
+      const get = kind === 'fill' ? this.m.FPDFPageObj_GetFillColor : this.m.FPDFPageObj_GetStrokeColor;
+      const ok = get.call(this.m, obj, p, p + 4, p + 8, p + 12);
       const v = (i: number) => this.m.pdfium.getValue(p + i * 4, 'i32');
       return ok ? { r: v(0), g: v(1), b: v(2), a: v(3) } : { r: 0, g: 0, b: 0, a: 255 };
     } finally {

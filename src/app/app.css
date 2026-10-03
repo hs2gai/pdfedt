@@ -29,7 +29,8 @@ select, textarea { font: inherit; }
 .toolbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .toolbar .spacer { flex: 1; }
 .toolbar .zoom { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; color: #555; }
-.toolbar .doc-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; }
+/* 文書名は残りの幅に収まるだけ表示する（長い名前でツールバーが折り返さないよう、幅 0 から伸ばす） */
+.toolbar .doc-name { flex: 1 1 0; min-width: 48px; max-width: 240px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; }
 
 .brand { display: inline-flex; align-items: center; gap: 6px; user-select: none; color: inherit; text-decoration: none; }
 a.brand:hover .brand-name { color: var(--accent); }
@@ -40,6 +41,32 @@ a.brand:hover .brand-name { color: var(--accent); }
 .brand-large .brand-name { font-size: 30px; letter-spacing: .02em; }
 
 .status-bar { padding: 4px 12px; font-size: 12px; background: #fffbe6; border-bottom: 1px solid #f0e6b0; }
+
+/* ページ番号（3 / 12）。数字を入れて Enter でそのページへ */
+.page-nav { display: inline-flex; align-items: center; gap: 4px; margin: 0; color: #555; font-variant-numeric: tabular-nums; }
+.page-nav input { font: inherit; text-align: right; padding: 3px 4px; border: 1px solid var(--border); border-radius: 4px; box-sizing: content-box; }
+.page-total { white-space: nowrap; }
+
+/* 文字検索バー（Ctrl+F） */
+.search-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-bottom: 1px solid var(--border); background: #fafbfc; }
+.search-bar .search-icon { color: #777; flex: none; }
+.search-bar input { font: inherit; flex: 0 1 320px; min-width: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+.search-status { min-width: 6em; font-size: 12px; color: #555; font-variant-numeric: tabular-nums; }
+.search-status.error { color: #b71c1c; }
+.search-bar input[aria-invalid] { border-color: #c62828; outline-color: #c62828; }
+/* 大文字小文字の区別（Aa）・正規表現（.*）の切り替え */
+.search-toggle { width: 30px; font: 600 13px/1 ui-monospace, Consolas, monospace; }
+
+/* 印刷: 画面には出さず、印刷時はページ画像だけを 1 枚ずつ用紙に収める（src/viewer/print.ts） */
+#print-pages { display: none; }
+@media print {
+  @page { margin: 0; }
+  html, body { height: auto; }
+  body > *:not(#print-pages) { display: none !important; }
+  #print-pages { display: block; }
+  #print-pages img { display: block; width: 100%; height: 100vh; object-fit: contain; break-after: page; }
+  #print-pages img:last-child { break-after: auto; }
+}
 
 .viewer { flex: 1; min-height: 0; position: relative; }
 .viewport { background: #e9ecef; height: 100%; }
@@ -188,7 +215,12 @@ a.brand:hover .brand-name { color: var(--accent); }
 .content-edit-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .ce-object { position: absolute; box-sizing: border-box; border: 1px dashed rgba(198,40,40,.35); }
 .ce-object.ce-text { border-color: rgba(26,115,232,.35); }
+.ce-object.ce-background { border-color: rgba(120,120,120,.5); border-style: dotted; }
+.content-edit-banner-toggle { margin-left: 12px; white-space: nowrap; cursor: pointer; }
+.content-edit-banner-toggle input { vertical-align: middle; margin: 0 4px 0 0; }
 .ce-object.selected { border: 2px solid #1a73e8; background: rgba(26,115,232,.12); }
+/* Region kept for Ctrl+C (src/viewer/RegionSelection.tsx) */
+.region-select { position: absolute; z-index: 4; pointer-events: none; box-sizing: border-box; border: 1px dashed rgba(0,122,204,.8); background: rgba(0,122,204,.1); }
 .ce-marquee { position: absolute; border: 1px solid #1a73e8; background: rgba(26,115,232,.08); }
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
 .modal { width: 480px; max-width: 92vw; background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
