@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "pdfedt",
-  "version": "0.6.0",
-  "description": "PDF をどこにも送らずに、ブラウザの中だけで注釈を付けて保存します。開いた PDF を pdfedt で表示します。",
+  "name": "pdfugu",
+  "version": "0.6.1",
+  "description": "PDF をどこにも送らずに、ブラウザの中だけで注釈を付けて保存します。開いた PDF を pdfugu で表示します。",
   "icons": {
     "192": "icon-192.png",
     "512": "icon-512.png"
   },
   "action": {
-    "default_title": "pdfedt を開く"
+    "default_title": "pdfugu を開く"
   },
   "background": {
     "service_worker": "background.js",

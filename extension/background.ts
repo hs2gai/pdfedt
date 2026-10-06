@@ -1,7 +1,7 @@
 /**
  * Background of the Chrome extension (MV3 service worker).
  *
- * Redirects PDFs opened in the browser to the pdfedt viewer page (index.html#src=<original URL>).
+ * Redirects PDFs opened in the browser to the pdfugu viewer page (index.html#src=<original URL>).
  * There is no API to disable Chrome's built-in PDF viewer, so three paths get there first:
  *   1. http(s) URLs ending in .pdf   -> declarativeNetRequest redirects the request itself (the built-in viewer never starts)
  *   2. other http(s) URLs            -> webRequest.onHeadersReceived checks Content-Type and replaces the tab
@@ -42,11 +42,11 @@ async function applyRedirectRule(enabled: boolean) {
 async function setup() {
   await applyRedirectRule(await isAutoOpen());
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: 'open-link', title: 'リンク先の PDF を pdfedt で開く', contexts: ['link'] });
-    chrome.contextMenus.create({ id: 'open-page', title: 'このページを pdfedt で開く', contexts: ['page'] });
+    chrome.contextMenus.create({ id: 'open-link', title: 'リンク先の PDF を pdfugu で開く', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'open-page', title: 'このページを pdfugu で開く', contexts: ['page'] });
     chrome.contextMenus.create({
       id: 'auto-open',
-      title: 'PDFを自動でpdfedtで開く',
+      title: 'PDFを自動でpdfuguで開く',
       contexts: ['action'],
       type: 'checkbox',
     });

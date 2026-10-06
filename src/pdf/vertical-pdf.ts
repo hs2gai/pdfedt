@@ -79,7 +79,7 @@ export function buildVerticalTextPdf(spec: VerticalTextSpec): VerticalTextPdf {
     .map((g) => `${g} ${g} ${-em(font.verticalAdvance(g))} ${em(font.advance(g) / 2)} ${em(font.ascent)}`)
     .join(' ');
   const mediaBox = [0, 0, half * 2, column.length + pad * 2].map(num).join(' ');
-  const name = `PDFEDT+${(readSfntFaces(fontBytes)[0]?.postscriptName || 'Font').replace(/[^\x21-\x7e]|[()<>[\]{}/%#]/g, '')}`;
+  const name = `PDFUGU+${(readSfntFaces(fontBytes)[0]?.postscriptName || 'Font').replace(/[^\x21-\x7e]|[()<>[\]{}/%#]/g, '')}`;
   const dv = new DataView(fontBytes.buffer, fontBytes.byteOffset, fontBytes.byteLength);
   const head = sfntTables(dv).get('head')!;
   const bbox = [36, 38, 40, 42].map((o) => Math.round((dv.getInt16(head + o) * 1000) / font.unitsPerEm)).join(' ');

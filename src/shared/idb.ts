@@ -2,7 +2,7 @@
  * App-wide IndexedDB. To add a store, add it to STORES and bump DB_VERSION
  * (onupgradeneeded creates only the missing stores).
  */
-const DB_NAME = 'pdfedt';
+const DB_NAME = 'pdfugu';
 const DB_VERSION = 3;
 
 export const STORES = {

@@ -1,10 +1,10 @@
 # Contributing
 
-Thank you for your interest in pdfedt.
+Thank you for your interest in pdfugu.
 
 ## Bug reports and feature requests
 
-Please open an [issue](https://github.com/hs2gai/pdfedt/issues). Japanese or English is fine. For a bug, please include:
+Please open an [issue](https://github.com/hs2gai/pdfugu/issues). Japanese or English is fine. For a bug, please include:
 
 - what you used (web app / Chrome extension, browser and version)
 - steps to reproduce, and a sample PDF if one is needed (strip any personal data from it)
@@ -24,7 +24,7 @@ Responses may take a while.
 
 ## 日本語
 
-不具合報告・要望は [Issue](https://github.com/hs2gai/pdfedt/issues) へお願いします（日本語で構いません）。脆弱性は Issue ではなく [SECURITY.md](SECURITY.md) の手順で非公開でご報告ください。
+不具合報告・要望は [Issue](https://github.com/hs2gai/pdfugu/issues) へお願いします（日本語で構いません）。脆弱性は Issue ではなく [SECURITY.md](SECURITY.md) の手順で非公開でご報告ください。
 
 このリポジトリは別の開発用リポジトリからリリースごとに 1 コミットで公開しており、公開のたびに `main` の内容が置き換わります。そのため **ここでマージしたプルリクエストは次のリリースで上書きされる** ので、直接はマージしません。プルリクエストは提案として拝見し、取り込むかどうかを検討します。取り込む場合はメンテナが開発用リポジトリで書き直して次のリリースに入れます。
 

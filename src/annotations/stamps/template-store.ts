@@ -54,14 +54,14 @@ export function useStampTemplates(): StampTemplate[] {
 // JSON export / import
 
 interface StampFile {
-  format: 'pdfedt-stamps';
+  format: 'pdfugu-stamps';
   version: 1;
   stamps: StampTemplate[];
 }
 
 export function templatesToJson(templates: StampTemplate[]): string {
   const file: StampFile = {
-    format: 'pdfedt-stamps',
+    format: 'pdfugu-stamps',
     version: 1,
     stamps: templates.map((t) => ({ ...t, builtin: undefined })),
   };
@@ -71,7 +71,7 @@ export function templatesToJson(templates: StampTemplate[]): string {
 /** Validates the JSON and returns it. IDs are reassigned (to avoid clashing with existing ones) */
 export function templatesFromJson(json: string): StampTemplate[] {
   const file = JSON.parse(json) as Partial<StampFile>;
-  if (file.format !== 'pdfedt-stamps' || !Array.isArray(file.stamps)) {
+  if (file.format !== 'pdfugu-stamps' || !Array.isArray(file.stamps)) {
     throw new Error(tr('stamp.notStampFile'));
   }
   return file.stamps.map((t) => {

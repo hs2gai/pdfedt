@@ -14,7 +14,7 @@
   "copy.annotations": "注釈を {count} 個コピーしました（Ctrl+V で貼り付け）",
   "paste.annotations": "注釈を {count} 個貼り付けました",
   "paste.failed": "貼り付けできませんでした: {message}",
-  "brand.backToEditor": "pdfedt {version} — エディタへ戻る",
+  "brand.backToEditor": "pdfugu {version} — エディタへ戻る",
 
   "toolbar.open": "開く",
   "toolbar.open.help": "PDFファイルを選ぶ",
@@ -284,7 +284,7 @@
   "url.fetchFailed": "PDFを取得できませんでした: {message}",
 
   "se.title": "スタンプ作成",
-  "se.docTitle": "スタンプ作成 - pdfedt",
+  "se.docTitle": "スタンプ作成 - pdfugu",
   "se.newName": "新しいスタンプ",
   "se.textDefault": "文字",
   "se.confirmDiscard": "編集中の内容を破棄しますか？",

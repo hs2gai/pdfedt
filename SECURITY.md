@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Only the latest release (the version running at https://pdfedt.hs2g.com and the latest tag in this repository) receives security fixes.
+Only the latest release (the version running at https://pdfugu.hs2g.com and the latest tag in this repository) receives security fixes.
 
 ## Reporting a vulnerability
 
 **Please do not open a public issue for security problems.**
 
-Report privately via GitHub: **[Report a vulnerability](https://github.com/hs2gai/pdfedt/security/advisories/new)**
+Report privately via GitHub: **[Report a vulnerability](https://github.com/hs2gai/pdfugu/security/advisories/new)**
 (the "Security" tab of this repository → "Report a vulnerability").
 
 Please include:
@@ -21,7 +21,7 @@ Responses may take a while.
 
 ## Scope
 
-pdfedt processes PDFs entirely in the browser and never sends them anywhere. Issues that break this are especially important, for example:
+pdfugu processes PDFs entirely in the browser and never sends them anywhere. Issues that break this are especially important, for example:
 
 - a crafted PDF that runs script in the page (XSS) or bypasses the Content Security Policy
 - the app or the Chrome extension sending document data, or any request, to a third-party origin
@@ -33,4 +33,4 @@ Out of scope: problems that require a compromised browser or device, and reports
 
 ## 日本語
 
-脆弱性は公開の Issue ではなく、上記の **[Report a vulnerability](https://github.com/hs2gai/pdfedt/security/advisories/new)**（リポジトリの Security タブ）から非公開でご報告ください。日本語で構いません。お返事までお時間をいただくことがあります。
+脆弱性は公開の Issue ではなく、上記の **[Report a vulnerability](https://github.com/hs2gai/pdfugu/security/advisories/new)**（リポジトリの Security タブ）から非公開でご報告ください。日本語で構いません。お返事までお時間をいただくことがあります。

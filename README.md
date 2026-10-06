@@ -1,4 +1,4 @@
-# pdfedt
+# pdfugu
 
 English | [日本語](README.ja.md)
 
@@ -64,14 +64,14 @@ Differences outside Chrome / Edge:
 
 ## Chrome extension
 
-An extension that uses pdfedt instead of Chrome's built-in PDF viewer. When a PDF is opened in the browser (link, address bar, local file), the tab switches to pdfedt. It is not on the Web Store; a prebuilt copy is included in the repository as `dist-ext/`.
+An extension that uses pdfugu instead of Chrome's built-in PDF viewer. When a PDF is opened in the browser (link, address bar, local file), the tab switches to pdfugu. It is not on the Web Store; a prebuilt copy is included in the repository as `dist-ext/`.
 
 1. Get the repository (`git clone` or "Download ZIP" on GitHub, then extract it)
 2. Open `chrome://extensions` and turn on "Developer mode" (top right)
 3. "Load unpacked" → choose the `dist-ext/` folder
 4. To open local PDFs as well (`file://`, including files opened from the download history), make sure "Allow access to file URLs" is on in the extension's details (usually on for unpacked extensions)
 
-The only request the extension makes is for "the PDF URL the user opened"; there is no other traffic, same as the web build. If you do not want automatic switching, right-click the toolbar icon and uncheck "PDF を自動で pdfedt で開く" — pdfedt then opens only from the icon and from the right-click menu on PDF links.
+The only request the extension makes is for "the PDF URL the user opened"; there is no other traffic, same as the web build. If you do not want automatic switching, right-click the toolbar icon and uncheck "PDF を自動で pdfugu で開く" — pdfugu then opens only from the icon and from the right-click menu on PDF links.
 
 To build it yourself, run the following and load `dist-ext/` the same way. After rebuilding (or updating the repository), press the reload button in `chrome://extensions`.
 

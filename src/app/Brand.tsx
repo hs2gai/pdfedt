@@ -16,7 +16,7 @@ export function Brand({ size = 'small' }: { size?: 'small' | 'large' }) {
         <rect x="9" y="14" width="3.5" height="1.6" fill="#f4b400" />
         <rect x="9" y="17" width="6" height="1.6" fill="var(--accent)" />
       </svg>
-      <span className="brand-name">pdfedt</span>
+      <span className="brand-name">pdfugu</span>
     </>
   );
   return size === 'small' ? (
@@ -24,7 +24,7 @@ export function Brand({ size = 'small' }: { size?: 'small' | 'large' }) {
       {inner}
     </a>
   ) : (
-    <span className="brand brand-large" aria-label="pdfedt">
+    <span className="brand brand-large" aria-label="pdfugu">
       {inner}
     </span>
   );

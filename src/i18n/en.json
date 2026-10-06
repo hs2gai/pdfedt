@@ -14,7 +14,7 @@
   "copy.annotations": "Copied {count} annotation(s) (paste with Ctrl+V)",
   "paste.annotations": "Pasted {count} annotation(s)",
   "paste.failed": "Could not paste: {message}",
-  "brand.backToEditor": "pdfedt {version} — back to the editor",
+  "brand.backToEditor": "pdfugu {version} — back to the editor",
 
   "toolbar.open": "Open",
   "toolbar.open.help": "Choose a PDF file",
@@ -284,7 +284,7 @@
   "url.fetchFailed": "Could not load the PDF: {message}",
 
   "se.title": "Stamp editor",
-  "se.docTitle": "Stamp editor - pdfedt",
+  "se.docTitle": "Stamp editor - pdfugu",
   "se.newName": "New stamp",
   "se.textDefault": "Text",
   "se.confirmDiscard": "Discard unsaved changes?",

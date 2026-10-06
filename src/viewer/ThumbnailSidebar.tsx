@@ -5,7 +5,7 @@ import type { ThumbMeta } from '@embedpdf/plugin-thumbnail';
 import { useAppSettings } from '../app/settings';
 import { t } from '../i18n';
 
-const PAGE_DRAG_TYPE = 'application/x-pdfedt-page';
+const PAGE_DRAG_TYPE = 'application/x-pdfugu-page';
 
 interface Props {
   documentId: string;

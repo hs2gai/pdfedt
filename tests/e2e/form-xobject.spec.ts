@@ -169,7 +169,7 @@ test('Form の中の縦書きの列を置換すると縦書きのまま書き換
   const bytes = await saveAndReopen(page);
   // The new column uses our embedded font in vertical writing mode
   const fontDicts = bytes.toString('latin1').match(/<<[^<>]*\/Identity-V[^<>]*>>/g) ?? [];
-  expect(fontDicts.some((d) => d.includes('PDFEDT+'))).toBe(true);
+  expect(fontDicts.some((d) => d.includes('PDFUGU+'))).toBe(true);
   const [first, second] = await pageTexts(page);
   expect(first).toContain('置き換えた縦書き');
   expect(first).not.toContain('縦書きの見本');

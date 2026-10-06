@@ -91,7 +91,7 @@ export function SettingsMenu() {
               </span>
             </label>
           )}
-          <div className="menu-help settings-version">pdfedt {__APP_VERSION__}</div>
+          <div className="menu-help settings-version">pdfugu {__APP_VERSION__}</div>
         </div>
       )}
     </div>

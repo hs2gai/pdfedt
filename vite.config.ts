@@ -91,8 +91,8 @@ export default defineConfig(({ mode }) => {
           injectRegister: 'script-defer',
           includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png', 'fonts/*'],
           manifest: {
-            name: 'pdfedt',
-            short_name: 'pdfedt',
+            name: 'pdfugu',
+            short_name: 'pdfugu',
             description: 'PDF をどこにも送らずに、ブラウザの中だけで注釈を付けて保存します。',
             lang: 'ja',
             theme_color: '#1a73e8',

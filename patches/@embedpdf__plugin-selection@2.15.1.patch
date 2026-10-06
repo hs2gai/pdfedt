@@ -7,7 +7,7 @@ index 396ed08284fc85a081096877c053f2212c625181..9788b7cd85c204fd460d96b64068d001
      let prevRight = -Infinity;
      const flushSubRun = () => {
 -      if (minX !== Infinity && charCount > 0) {
-+      // pdfedt: also leave out boxes squashed to under 2pt (a zero-height glyph at the head of a vertical column):
++      // pdfugu: also leave out boxes squashed to under 2pt (a zero-height glyph at the head of a vertical column):
 +      // there is nothing to mark, and markup made from them comes out as stray ticks
 +      if (minX !== Infinity && charCount > 0 && maxX - minX >= 2 && maxY - minY >= 2) {
          textRuns.push({
@@ -15,7 +15,7 @@ index 396ed08284fc85a081096877c053f2212c625181..9788b7cd85c204fd460d96b64068d001
              origin: { x: minX, y: minY },
 -            size: { width: maxX - minX, height: maxY - minY }
 +            size: { width: maxX - minX, height: maxY - minY },
-+            // pdfedt: runs pdfedt found on a vertical column (src/pdf/text-geometry.ts); markup reads it from the rect
++            // pdfugu: runs pdfugu found on a vertical column (src/pdf/text-geometry.ts); markup reads it from the rect
 +            ...(run.vertical ? { vertical: true } : {})
            },
            charCount,
@@ -29,7 +29,7 @@ index 396ed08284fc85a081096877c053f2212c625181..9788b7cd85c204fd460d96b64068d001
    return intersectRect.size.height / unionRect.size.height;
  }
  function shouldMergeHorizontalRects(textRun1, textRun2) {
-+  // pdfedt: runs of one vertical column (same extent, the second right below the first) join into one rect;
++  // pdfugu: runs of one vertical column (same extent, the second right below the first) join into one rect;
 +  // rects are never merged across columns
 +  if (textRun1.vertical || textRun2.vertical) {
 +    const a = textRun1.rect;
