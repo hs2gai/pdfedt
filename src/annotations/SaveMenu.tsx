@@ -15,6 +15,8 @@ interface Props {
   onStatus: (msg: string) => void;
   /** Whether the content was rewritten in content editing mode (skip incremental save and use a new name) */
   contentEdited?: boolean;
+  /** Ask to revert to the file as first opened */
+  onReset: () => void;
 }
 
 type Kind = 'incremental' | 'full' | 'flatten';
@@ -26,7 +28,7 @@ const KINDS: { kind: Kind; suffix: string }[] = [
   { kind: 'flatten', suffix: '_f' },
 ];
 
-export function SaveMenu({ runtime, documentId, documentName, onStatus, contentEdited }: Props) {
+export function SaveMenu({ runtime, documentId, documentName, onStatus, contentEdited, onReset }: Props) {
   const { provides: annotations } = useAnnotationCapability();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -86,6 +88,16 @@ export function SaveMenu({ runtime, documentId, documentName, onStatus, contentE
           >
             <span className="menu-label">{t('save.protect')}</span>
             <span className="menu-help">{t('save.protect.help')}</span>
+          </button>
+          <button
+            className="menu-separated"
+            onClick={() => {
+              setOpen(false);
+              onReset();
+            }}
+          >
+            <span className="menu-label">{t('save.reset')}</span>
+            <span className="menu-help">{t('save.reset.help')}</span>
           </button>
         </div>
       )}

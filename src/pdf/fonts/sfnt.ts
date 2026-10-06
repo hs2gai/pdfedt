@@ -69,14 +69,20 @@ export function embedRestriction(fsType: number): MessageKey | null {
   return null;
 }
 
-function readFace(dv: DataView, offset: number, index: number): SfntFace {
-  const numTables = dv.getUint16(offset + 4);
+/** Table tag → absolute offset of the table, for the face whose table directory starts at `faceOffset` */
+export function sfntTables(dv: DataView, faceOffset = 0): Map<string, number> {
+  const numTables = dv.getUint16(faceOffset + 4);
   const tables = new Map<string, number>();
   for (let i = 0; i < numTables; i++) {
-    const r = offset + 12 + i * 16;
+    const r = faceOffset + 12 + i * 16;
     const tag = String.fromCharCode(dv.getUint8(r), dv.getUint8(r + 1), dv.getUint8(r + 2), dv.getUint8(r + 3));
     tables.set(tag, dv.getUint32(r + 8));
   }
+  return tables;
+}
+
+function readFace(dv: DataView, offset: number, index: number): SfntFace {
+  const tables = sfntTables(dv, offset);
   const os2 = tables.get('OS/2');
   const name = tables.get('name');
   const names = name === undefined ? new Map<string, string>() : readNames(dv, name);

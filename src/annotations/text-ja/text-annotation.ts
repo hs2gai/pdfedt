@@ -18,6 +18,8 @@ export interface TextStyle {
   color: { r: number; g: number; b: number };
   /** Typeface (missing in old annotations → gothic) */
   font?: FontId;
+  /** Vertical writing: lines become columns running right to left */
+  vertical?: boolean;
 }
 
 export interface TextAnnotationData extends TextStyle {
@@ -57,7 +59,13 @@ export async function createTextAnnotation(
   author?: string,
 ): Promise<string> {
   const font = await loadJaFont(data.font ?? DEFAULT_FONT_ID);
-  const textSpec = { text: data.text, fontSize: data.fontSize, color: data.color, fontData: font.subsetFor([data.text]) };
+  const textSpec = {
+    text: data.text,
+    fontSize: data.fontSize,
+    color: data.color,
+    vertical: data.vertical,
+    fontData: font.subsetFor([data.text]),
+  };
   let rect: Rect;
   let appearance;
   let callout: TextAnnotationData['callout'];
@@ -83,7 +91,15 @@ export async function createTextAnnotation(
     created: new Date(),
     modified: new Date(),
     custom: {
-      pdfa: { kind: 'text', text: data.text, fontSize: data.fontSize, color: data.color, font: data.font, callout },
+      pdfa: {
+        kind: 'text',
+        text: data.text,
+        fontSize: data.fontSize,
+        color: data.color,
+        font: data.font,
+        vertical: data.vertical,
+        callout,
+      },
     },
   };
   const pdfBuffer = appearance.pdf.buffer.slice(

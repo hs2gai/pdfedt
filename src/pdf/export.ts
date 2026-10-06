@@ -4,6 +4,7 @@ import { saveDocument } from './save';
 import { flattenCopy } from './flatten';
 import { encryptCopy } from './encrypt';
 import { IncrementalSaver } from './incremental';
+import { forgetReadingDirection, neutralizeReadingDirection, withOriginalReadingDirection } from './reading-direction';
 
 export type ExportKind = 'incremental' | 'full' | 'flatten';
 
@@ -14,9 +15,11 @@ const passwords = new Map<string, string>();
 
 /** Call right after opening the document to record the original bytes and the baseline increment */
 export function registerOpenedDocument(runtime: PdfRuntime, documentId: string, original: Uint8Array) {
+  const docPtr = getDocPtr(runtime.native, documentId);
   const saver = new IncrementalSaver(runtime.pdfium, original);
-  saver.captureBaseline(getDocPtr(runtime.native, documentId));
+  saver.captureBaseline(docPtr);
   savers.set(documentId, saver);
+  neutralizeReadingDirection(runtime.pdfium, documentId, docPtr);
 }
 
 /** Remember the password used to open the document (a wrong one is simply overwritten by the next try) */
@@ -32,6 +35,7 @@ export function openPasswordOf(documentId: string): string {
 export function forgetDocument(documentId: string) {
   savers.delete(documentId);
   passwords.delete(documentId);
+  forgetReadingDirection(documentId);
 }
 
 /**
@@ -46,8 +50,18 @@ export function exportDocument(
   kind: ExportKind,
   newPassword?: string,
 ): Uint8Array {
-  const m = runtime.pdfium;
   const docPtr = getDocPtr(runtime.native, documentId);
+  return withOriginalReadingDirection(documentId, docPtr, () => exportWith(runtime, documentId, docPtr, kind, newPassword));
+}
+
+function exportWith(
+  runtime: PdfRuntime,
+  documentId: string,
+  docPtr: number,
+  kind: ExportKind,
+  newPassword?: string,
+): Uint8Array {
+  const m = runtime.pdfium;
   const password = openPasswordOf(documentId);
   if (newPassword !== undefined) {
     if (kind === 'incremental') throw new Error('A password cannot be set on an incremental save');

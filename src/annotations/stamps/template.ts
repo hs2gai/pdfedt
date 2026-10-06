@@ -241,17 +241,11 @@ export function templateAppearanceSpec(
             if (!text) break;
             const font = el.font;
             if (el.vertical) {
-              const chars = [...text];
-              // Treat one character as a square and fit it in both width and height
-              const size = Math.max(4, Math.min(el.fontSize, el.w, el.h / chars.length));
-              const step = Math.min(size * 1.05, el.h / chars.length);
-              const top = H - el.y - (el.h - step * chars.length) / 2;
-              chars.forEach((ch, i) => {
-                const cy = top - step * (i + 0.5);
-                // With a single character the bearing offset is noticeable, so center the ink on the box
-                const b = c.measureBounds(ch, size, font);
-                c.text(ch, el.x + el.w / 2 - (b.left + b.right) / 2, cy - size * 0.36, size, rgb, font);
-              });
+              // The column is 1 em wide: fit it in the box's width, then shrink until it fits its height
+              let size = Math.min(el.fontSize, el.w);
+              while (size > 4 && c.measureVertical(text, size, font) > el.h) size -= 0.5;
+              const top = H - el.y - (el.h - c.measureVertical(text, size, font)) / 2;
+              c.verticalText(text, el.x + el.w / 2, top, size, rgb, font);
             } else {
               let size = Math.min(el.fontSize, el.h / 1.1);
               while (size > 4 && c.measure(text, size, font) > el.w) size -= 0.5;

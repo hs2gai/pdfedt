@@ -13,3 +13,4 @@ docs/test.pdf
 *.tsbuildinfo
 .wrangler
 docs/private
+temp

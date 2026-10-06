@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
-import { inflateSync } from 'node:zlib';
-import { openPdf, pageGeometry, saveVia } from './helpers';
+import { openPdf, pageGeometry, pdfStreams, saveVia } from './helpers';
 
 /**
  * Local fonts (Local Font Access API) are used to render non-embedded fonts, for content-edit replacement, and as annotation typefaces.
@@ -39,13 +38,9 @@ async function enableFakeLocalFonts(page: Page) {
 
 /** Extracts every FontFile2 embedded in the output PDF (inflated if Flate-compressed) */
 function fontFiles(bytes: Buffer): Buffer[] {
-  const pdf = bytes.toString('latin1');
-  const out: Buffer[] = [];
-  for (const m of pdf.matchAll(/<<([^>]*?\/Length1[^>]*?)>>\s*stream\r?\n/g)) {
-    const length = Number(/\/Length\s+(\d+)/.exec(m[1])![1]);
-    const stream = bytes.subarray(m.index! + m[0].length, m.index! + m[0].length + length);
-    out.push(m[1].includes('/FlateDecode') ? inflateSync(stream) : Buffer.from(stream));
-  }
+  const out = pdfStreams(bytes)
+    .filter((s) => s.dict.includes('/Length1'))
+    .map((s) => s.data);
   expect(out.length).toBeGreaterThan(0);
   return out;
 }

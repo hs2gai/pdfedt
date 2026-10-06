@@ -2,6 +2,13 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に従う。バージョンは [SemVer](https://semver.org/lang/ja/)。
 
+## [0.6.0] - 2026-10-06
+
+### Added
+
+- 保存メニューに「最初に開いた状態に戻す」を追加する
+- 縦書き（下線・取消線・テキスト注釈・スタンプ・本文編集）、Form XObject の中の本文編集、右綴じ PDF に対応する
+
 ## [0.5.1] - 2026-10-03
 
 ### Fixed

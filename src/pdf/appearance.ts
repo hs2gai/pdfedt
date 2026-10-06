@@ -1,6 +1,7 @@
 import type { WrappedPdfiumModule } from '@embedpdf/pdfium';
 import { wasmUtils } from './wasm-utils';
 import { saveDocument } from './save';
+import { layoutColumn, readVerticalFont, type VerticalFont } from './fonts/vertical';
 
 const FPDF_FONT_TRUETYPE = 2;
 /** fpdf_edit.h: FPDF_FILLMODE_* */
@@ -31,6 +32,13 @@ export interface AppearanceCanvas {
   /** Left / right ink extents from the origin (pt). Used for centering (avoids the left-bearing offset) */
   measureBounds(text: string, fontSize: number, font?: string): { left: number; right: number };
   text(text: string, x: number, baselineY: number, fontSize: number, color: RGB, font?: string): void;
+  /** Length of a vertical column (pt) */
+  measureVertical(text: string, fontSize: number, font?: string): number;
+  /**
+   * One column of vertical text, centered on centerX and running down from topY.
+   * Upright characters use the font's vertical forms (GSUB 'vert'); Latin runs are rotated 90° clockwise
+   */
+  verticalText(text: string, centerX: number, topY: number, fontSize: number, color: RGB, font?: string): void;
   rect(x: number, y: number, w: number, h: number, style: ShapeStyle): void;
   roundRect(x: number, y: number, w: number, h: number, r: number, style: ShapeStyle): void;
   ellipse(cx: number, cy: number, rx: number, ry: number, style: ShapeStyle): void;
@@ -52,8 +60,8 @@ export interface AppearanceSpec {
   fontData: Uint8Array;
   /** Additional typefaces (keys chosen by the caller). Selected via the font argument of text / measure */
   fonts?: Record<string, Uint8Array>;
-  /** Measure text widths to decide the size */
-  layout(measure: Measure): { width: number; height: number };
+  /** Measure text widths (and vertical column lengths) to decide the size */
+  layout(measure: Measure, measureVertical: Measure): { width: number; height: number };
   draw(canvas: AppearanceCanvas, size: { width: number; height: number }): void;
 }
 
@@ -101,7 +109,19 @@ export function buildAppearance(m: WrappedPdfiumModule, spec: AppearanceSpec): A
       const b = measureBounds(text, fontSize, font);
       return b.right - b.left;
     };
-    const size = spec.layout(measure);
+    // Vertical metrics are read from the same bytes PDFium embeds, so glyph IDs match
+    const vertical = new Map<Uint8Array, VerticalFont>();
+    const verticalOf = (key?: string) => {
+      const data = (key && spec.fonts?.[key]) || spec.fontData;
+      let v = vertical.get(data);
+      if (!v) {
+        v = readVerticalFont(data);
+        vertical.set(data, v);
+      }
+      return v;
+    };
+    const measureVertical: Measure = (text, fontSize, font) => layoutColumn(text, verticalOf(font), fontSize).length;
+    const size = spec.layout(measure, measureVertical);
     const page = m.FPDFPage_New(doc, 0, size.width, size.height);
     try {
       const applyStyle = (obj: number, style: ShapeStyle) => {
@@ -114,15 +134,42 @@ export function buildAppearance(m: WrappedPdfiumModule, spec: AppearanceSpec): A
         m.FPDFPage_InsertObject(page, obj);
       };
       try {
+        /** A text object placed with the matrix (a b c d e f); the content is set by fill */
+        const placeText = (
+          fontSize: number,
+          color: RGB,
+          font: string | undefined,
+          matrix: [number, number, number, number, number, number],
+          fill: (obj: number) => void,
+        ) => {
+          const obj = m.FPDFPageObj_CreateTextObj(doc, fontOf(font), fontSize);
+          fill(obj);
+          m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, 255);
+          m.FPDFPageObj_Transform(obj, ...matrix);
+          m.FPDFPage_InsertObject(page, obj);
+        };
+        const setText = (text: string) => (obj: number) => u.withWide(text || ' ', (p) => m.FPDFText_SetText(obj, p));
         const canvas: AppearanceCanvas = {
           measure,
           measureBounds,
+          measureVertical,
           text(text, x, baselineY, fontSize, color, font) {
-            const obj = m.FPDFPageObj_CreateTextObj(doc, fontOf(font), fontSize);
-            u.withWide(text || ' ', (p) => m.FPDFText_SetText(obj, p));
-            m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, 255);
-            m.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, baselineY);
-            m.FPDFPage_InsertObject(page, obj);
+            placeText(fontSize, color, font, [1, 0, 0, 1, x, baselineY], setText(text));
+          },
+          verticalText(text, centerX, topY, fontSize, color, font) {
+            for (const item of layoutColumn(text, verticalOf(font), fontSize).items) {
+              if (item.kind === 'sideways') {
+                // Rotated 90° clockwise: the text runs down the page, its top faces right
+                placeText(fontSize, color, font, [0, -1, 1, 0, centerX + item.x, topY - item.y], setText(item.text));
+                continue;
+              }
+              // PDFium's embedded TrueType fonts use glyph IDs as character codes (CIDToGIDMap Identity),
+              // so vertical forms without a Unicode mapping can be drawn directly
+              const codes = new Uint8Array(new Uint32Array([item.gid]).buffer);
+              placeText(fontSize, color, font, [1, 0, 0, 1, centerX + item.x, topY - item.y], (obj) =>
+                u.withBytes(codes, (p) => m.FPDFText_SetCharcodes(obj, p, 1)),
+              );
+            }
           },
           rect(x, y, w, h, style) {
             applyStyle(m.FPDFPageObj_CreateNewRect(x, y, w, h), style);
@@ -182,14 +229,16 @@ export function buildAppearance(m: WrappedPdfiumModule, spec: AppearanceSpec): A
 }
 
 // ---------------------------------------------------------------------------
-// For text annotations (multi-line, left-aligned text)
+// For text annotations (multi-line, left-aligned text; or right-to-left columns when vertical)
 
 export interface TextAppearanceSpec {
   text: string;
   fontSize: number;
   color: RGB;
   fontData: Uint8Array;
-  /** Line height (ratio to fontSize) */
+  /** Vertical writing: each line becomes a column, columns run right to left */
+  vertical?: boolean;
+  /** Line height (ratio to fontSize); the column pitch when vertical */
   lineHeight?: number;
   padding?: number;
 }
@@ -197,27 +246,46 @@ export interface TextAppearanceSpec {
 /** Ascent of BIZ UDPGothic (ratio to em). Used to compute the baseline position */
 export const FONT_ASCENT = 0.88;
 
-export function buildTextAppearance(m: WrappedPdfiumModule, spec: TextAppearanceSpec): Appearance {
-  const lineHeight = spec.fontSize * (spec.lineHeight ?? 1.25);
-  const padding = spec.padding ?? 2;
+interface TextBlock {
+  width: number;
+  height: number;
+  /** Draws the block with its top-left at (left, top) (PDF coordinates) */
+  draw(c: AppearanceCanvas, left: number, top: number): void;
+}
+
+/** Size and drawing of the text lines of a text / callout annotation */
+function layoutTextBlock(spec: TextAppearanceSpec, measure: Measure, measureVertical: Measure): TextBlock {
+  const { fontSize, color } = spec;
+  const pitch = fontSize * (spec.lineHeight ?? 1.25);
   const lines = spec.text.split(/\r?\n/);
+  if (spec.vertical) {
+    // The first column's em box touches the right edge; later columns follow to the left
+    const width = (lines.length - 1) * pitch + fontSize;
+    return {
+      width,
+      height: Math.max(...lines.map((l) => measureVertical(l, fontSize))),
+      draw: (c, left, top) =>
+        lines.forEach((line, i) => c.verticalText(line, left + width - fontSize / 2 - i * pitch, top, fontSize, color)),
+    };
+  }
+  return {
+    width: Math.max(...lines.map((l) => measure(l, fontSize))),
+    height: lines.length * pitch,
+    draw: (c, left, top) =>
+      lines.forEach((line, i) => c.text(line, left, top - fontSize * FONT_ASCENT - i * pitch, fontSize, color)),
+  };
+}
+
+export function buildTextAppearance(m: WrappedPdfiumModule, spec: TextAppearanceSpec): Appearance {
+  const padding = spec.padding ?? 2;
+  let block: TextBlock;
   return buildAppearance(m, {
     fontData: spec.fontData,
-    layout: (measure) => ({
-      width: Math.ceil(Math.max(...lines.map((l) => measure(l, spec.fontSize))) + padding * 2),
-      height: Math.ceil(lines.length * lineHeight + padding * 2),
-    }),
-    draw: (c, { height }) => {
-      lines.forEach((line, i) => {
-        c.text(
-          line,
-          padding,
-          height - padding - spec.fontSize * FONT_ASCENT - i * lineHeight,
-          spec.fontSize,
-          spec.color,
-        );
-      });
+    layout: (measure, measureVertical) => {
+      block = layoutTextBlock(spec, measure, measureVertical);
+      return { width: Math.ceil(block.width + padding * 2), height: Math.ceil(block.height + padding * 2) };
     },
+    draw: (c, { height }) => block.draw(c, padding, height - padding),
   });
 }
 
@@ -244,19 +312,19 @@ const ARROW_HALF = 3;
  */
 export function buildCalloutAppearance(m: WrappedPdfiumModule, spec: CalloutAppearanceSpec): CalloutAppearance {
   const bw = spec.borderWidth ?? 1;
-  const lineHeight = spec.fontSize * (spec.lineHeight ?? 1.25);
   const padding = (spec.padding ?? 2) + bw;
-  const lines = spec.text.split(/\r?\n/);
   const margin = ARROW_HALF + bw;
   // The frame position decided in layout is used in draw
+  let block: TextBlock;
   let boxW = 0;
   let boxH = 0;
   let box = { x: 0, y: 0 };
   const appearance = buildAppearance(m, {
     fontData: spec.fontData,
-    layout: (measure) => {
-      boxW = Math.ceil(Math.max(...lines.map((l) => measure(l, spec.fontSize))) + padding * 2);
-      boxH = Math.ceil(lines.length * lineHeight + padding * 2);
+    layout: (measure, measureVertical) => {
+      block = layoutTextBlock(spec, measure, measureVertical);
+      boxW = Math.ceil(block.width + padding * 2);
+      boxH = Math.ceil(block.height + padding * 2);
       const minX = Math.min(0, spec.tip.x - margin);
       const minY = Math.min(0, spec.tip.y - margin);
       const maxX = Math.max(boxW, spec.tip.x + margin);
@@ -299,10 +367,8 @@ export function buildCalloutAppearance(m: WrappedPdfiumModule, spec: CalloutAppe
       }
       const bl = toPdf(0, boxH);
       c.rect(bl.x + bw / 2, bl.y + bw / 2, boxW - bw, boxH - bw, { stroke: color, strokeWidth: bw });
-      lines.forEach((line, i) => {
-        const p = toPdf(padding, padding + spec.fontSize * FONT_ASCENT + i * lineHeight);
-        c.text(line, p.x, p.y, spec.fontSize, color);
-      });
+      const topLeft = toPdf(padding, padding);
+      block.draw(c, topLeft.x, topLeft.y);
     },
   });
   return { ...appearance, box };

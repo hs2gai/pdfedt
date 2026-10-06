@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { openPdf, pageGeometry, selectTool } from './helpers';
 
-// sample-scaled-tf.pdf: line 1 "上記著作物にかかる出版その他の利用等について、" at 12pt, x=60, baseline y=100 (top-left origin)
+// sample-scaled-tf.pdf: line 1 "この行は、文字の箱の高さを確かめるための見本です。" at 12pt, x=60, baseline y=100 (top-left origin)
 
 test.beforeEach(async ({ context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -37,7 +37,7 @@ test('文字をなぞって Ctrl+C で選択した文字がコピーされる', 
   await page.keyboard.press('Control+c');
   await expect(page.locator('.status-bar')).toHaveText('選択した文字をコピーしました');
   const text = await page.evaluate(() => navigator.clipboard.readText());
-  expect(text.startsWith('上記著作物')).toBe(true);
+  expect(text.startsWith('この行は')).toBe(true);
 });
 
 test('何もない所をドラッグした範囲が残り、Ctrl+C で画像としてコピーされる', async ({ page }) => {

@@ -45,6 +45,8 @@ interface Props {
   /** Page images are being prepared for printing */
   printing: boolean;
   onPrint: () => void;
+  /** Ask to revert to the file as first opened (in the save menu) */
+  onReset: () => void;
 }
 
 /** Tool list. Labels and descriptions come from i18n: tool.<id> / tool.<id>.help */
@@ -196,6 +198,7 @@ export function Toolbar({
   canPrint,
   printing,
   onPrint,
+  onReset,
 }: Props) {
   const tr = useT();
   return (
@@ -296,6 +299,7 @@ export function Toolbar({
             documentName={documentName ?? 'document.pdf'}
             onStatus={onStatus}
             contentEdited={contentEdited}
+            onReset={onReset}
           />
         </>
       )}

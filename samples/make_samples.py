@@ -127,7 +127,7 @@ print("ok (mixed-lines)")
 # ---- sample-scaled-tf.pdf: 「1 Tf」＋テキスト行列で 12pt にする組み方（Word + Acrobat PDFMaker 製 PDF の典型） ----
 # PDFium のゆるい文字ボックスは Tf の値だけで高さを決めるので、12pt の文字に 1pt の箱が付く
 c = canvas.Canvas("samples/sample-scaled-tf.pdf", pagesize=A4)
-for i, line in enumerate(["上記著作物にかかる出版その他の利用等について、", "著作権者を甲とし、出版権者を乙とする。"]):
+for i, line in enumerate(["この行は、文字の箱の高さを確かめるための見本です。", "二行目は、一行目と重ならないことを確かめます。"]):
     t = c.beginText()
     t.setFont("BIZUD", 1)
     t.setTextTransform(12, 0, 0, 12, 60, H - 100 - i * 18)
@@ -171,3 +171,143 @@ doc.save(
 )
 doc.close()
 print("ok (encrypted)")
+
+
+# ---- sample-vertical.pdf: 縦書き（Type0 / Identity-V = WMode 1。書籍・縦書き様式の典型） ----
+# 同梱の BIZ UDPゴシック（OFL）をサブセット埋め込み。正立の字は GSUB vert の縦書き用の字形を使う。
+# 列 1 は「1 Tf」＋テキスト行列で 12pt（InDesign 製の書籍 PDF の組み方）、列 2・3 は「12 Tf」。最後に横書き（Identity-H）の行を 1 つ置く。
+# 座標（左上原点、pt）: 列の中心 x = 500 / 480 / 460、列の上端 y = 100。横書きの行はベースライン y = 400、x = 60 から
+# 列 4（中心 x = 440）は縦中横: 「第」の下に半角の「12」を横に並べ（Identity-H、y 112–124）、その下に「回です」
+from fontTools.ttLib import TTFont as FTFont
+from fontTools import subset as ftsubset
+
+V_COLUMNS = ["縦書きの見本です。「テスト」用ー", "二列目の文章を、ここに置きます", "三列目（予備）の行", "第", "回です"]
+V_LINE = "横書きの行です"
+TCY = "12"
+full = FTFont("public/fonts/BIZUDPGothic-Regular.ttf")
+cmap = full.getBestCmap()
+vert = {}
+for fr in full["GSUB"].table.FeatureList.FeatureRecord:
+    if fr.FeatureTag == "vert":
+        for li in fr.Feature.LookupListIndex:
+            for st in full["GSUB"].table.LookupList.Lookup[li].SubTable:
+                vert.update(getattr(st, "mapping", {}) or {})
+# 縦は vert の字形（無ければそのまま）、横は cmap の字形。glyph 名 → 元の文字（ToUnicode 用）
+v_names = [[vert.get(cmap[ord(ch)], cmap[ord(ch)]) for ch in col] for col in V_COLUMNS]
+h_names = [cmap[ord(ch)] for ch in V_LINE]
+tcy_names = [cmap[ord(ch)] for ch in TCY]
+to_unicode = {}
+for names, text in [*zip(v_names, V_COLUMNS), (h_names, V_LINE), (tcy_names, TCY)]:
+    for n, ch in zip(names, text):
+        to_unicode[n] = ch
+opts = ftsubset.Options()
+opts.notdef_outline = True
+opts.layout_features = []
+sub = ftsubset.Subsetter(opts)
+sub.populate(glyphs=sorted(to_unicode))
+font = FTFont("public/fonts/BIZUDPGothic-Regular.ttf")
+sub.subset(font)
+buf = __import__("io").BytesIO()
+font.save(buf)
+font_bytes = buf.getvalue()
+# The subset keeps the original glyph order (.notdef first), so the new GID is the rank of the old one
+kept = sorted({0, *(full.getGlyphID(n) for n in to_unicode)})
+gid = {n: kept.index(full.getGlyphID(n)) for n in to_unicode}
+upm = full["head"].unitsPerEm
+hexs = lambda names: "".join(f"{gid[n]:04X}" for n in names)
+
+doc = fitz.open()
+page = doc.new_page(width=595, height=842)
+ff = doc.get_new_xref()
+doc.update_object(ff, "<<>>")
+doc.update_stream(ff, font_bytes)
+doc.xref_set_key(ff, "Length1", str(len(font_bytes)))
+fd = doc.get_new_xref()
+head = full["head"]
+doc.update_object(
+    fd,
+    f"<</Type/FontDescriptor/FontName/AAAAAA+BIZUDPGothic-Regular/Flags 4"
+    f"/FontBBox[{head.xMin * 1000 // upm} {head.yMin * 1000 // upm} {head.xMax * 1000 // upm} {head.yMax * 1000 // upm}]"
+    f"/ItalicAngle 0/Ascent 880/Descent -120/CapHeight 700/StemV 80/FontFile2 {ff} 0 R>>",
+)
+widths = " ".join(f"{gid[n]}[{full['hmtx'][n][0] * 1000 // upm}]" for n in sorted(to_unicode, key=lambda n: gid[n]))
+cid = doc.get_new_xref()
+doc.update_object(
+    cid,
+    f"<</Type/Font/Subtype/CIDFontType2/BaseFont/AAAAAA+BIZUDPGothic-Regular"
+    f"/CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)/Supplement 0>>/FontDescriptor {fd} 0 R"
+    f"/CIDToGIDMap/Identity/DW 1000/W[{widths}]>>",
+)
+bfchars = "\n".join(f"<{gid[n]:04X}> <{ord(ch):04X}>" for n, ch in sorted(to_unicode.items(), key=lambda kv: gid[kv[0]]))
+cmap_src = (
+    "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n"
+    "/CIDSystemInfo <</Registry (Adobe) /Ordering (UCS) /Supplement 0>> def\n"
+    "/CMapName /Adobe-Identity-UCS def /CMapType 2 def\n"
+    "1 begincodespacerange <0000> <FFFF> endcodespacerange\n"
+    f"{len(to_unicode)} beginbfchar\n{bfchars}\nendbfchar\n"
+    "endcmap CMapName currentdict /CMap defineresource pop end end"
+)
+tu = doc.get_new_xref()
+doc.update_object(tu, "<<>>")
+doc.update_stream(tu, cmap_src.encode())
+fonts = {}
+for name, enc in [("FV", "Identity-V"), ("FH", "Identity-H")]:
+    x = doc.get_new_xref()
+    doc.update_object(
+        x,
+        f"<</Type/Font/Subtype/Type0/BaseFont/AAAAAA+BIZUDPGothic-Regular/Encoding/{enc}"
+        f"/DescendantFonts[{cid} 0 R]/ToUnicode {tu} 0 R>>",
+    )
+    fonts[name] = x
+PH = 842
+ops = [
+    f"BT /FV 1 Tf 12 0 0 12 500 {PH - 100} Tm <{hexs(v_names[0])}> Tj ET",
+    f"BT /FV 12 Tf 1 0 0 1 480 {PH - 100} Tm <{hexs(v_names[1])}> Tj ET",
+    f"BT /FV 12 Tf 1 0 0 1 460 {PH - 100} Tm <{hexs(v_names[2])}> Tj ET",
+    f"BT /FH 12 Tf 1 0 0 1 60 {PH - 400} Tm <{hexs(h_names)}> Tj ET",
+    f"BT /FV 12 Tf 1 0 0 1 440 {PH - 100} Tm <{hexs(v_names[3])}> Tj ET",
+    # Squeezed to 75% (Tz) to fit the column and centered in it, its em box on y 112–124 (baseline 0.88 em below the top)
+    f"BT /FH 12 Tf 75 Tz 1 0 0 1 {440 - sum(full['hmtx'][n][0] for n in tcy_names) * 12 * 0.75 / upm / 2:.3f} {PH - 112 - 12 * 0.88:.3f} Tm <{hexs(tcy_names)}> Tj ET",
+    f"BT /FV 12 Tf 1 0 0 1 440 {PH - 124} Tm <{hexs(v_names[4])}> Tj ET",
+]
+contents = doc.get_new_xref()
+doc.update_object(contents, "<<>>")
+doc.update_stream(contents, "\n".join(ops).encode())
+doc.update_object(
+    page.xref,
+    f"<</Type/Page/Parent {doc.xref_get_key(page.xref, 'Parent')[1]}/MediaBox[0 0 595 {PH}]"
+    f"/Resources<</Font<</FV {fonts['FV']} 0 R/FH {fonts['FH']} 0 R>>>>/Contents {contents} 0 R>>",
+)
+doc.save("samples/sample-vertical.pdf", garbage=1, deflate=True)
+doc.close()
+print("ok (vertical)")
+
+
+# ---- sample-form-xobject.pdf: ページ全体を入れ子の Form XObject で包んだ文書（書籍 PDF・面付け・PDF の貼り込みの典型） ----
+# sample-vertical.pdf の 1 ページ目を 2 ページに貼り込む。PyMuPDF の show_pdf_page は「ページを包む Form」の中に
+# 「元のページの Form」を入れる 2 段の入れ子にし、2 ページ目も同じ Form を共有する（片方の編集が他方に及ばないことの確認用）
+src = fitz.open("samples/sample-vertical.pdf")
+doc = fitz.open()
+for _ in range(2):
+    doc.new_page(width=595, height=PH).show_pdf_page(fitz.Rect(0, 0, 595, PH), src, 0)
+doc.save("samples/sample-form-xobject.pdf", garbage=1, deflate=True)
+doc.close()
+src.close()
+print("ok (form xobject)")
+
+
+# ---- sample-vertical-r2l.pdf: 右綴じ（/ViewerPreferences /Direction /R2L）の縦書き（和書の典型） ----
+# sample-vertical.pdf に、かぎ括弧で始まって終わる列（中心 x = 420、上端 y = 100）を足し、カタログに右綴じを付ける。
+# PDFium の文字の取り出しは R2L を双方向テキストの基準方向にするため、列の両端の括弧が入れ替わって反転する（「テスト「 になる）
+R2L_COLUMN = "「テスト」"
+doc = fitz.open("samples/sample-vertical.pdf")
+page = doc[0]
+extra = doc.get_new_xref()
+doc.update_object(extra, "<<>>")
+r2l_names = [vert.get(cmap[ord(ch)], cmap[ord(ch)]) for ch in R2L_COLUMN]
+doc.update_stream(extra, f"BT /FV 12 Tf 1 0 0 1 420 {PH - 100} Tm <{hexs(r2l_names)}> Tj ET".encode())
+doc.xref_set_key(page.xref, "Contents", f"[{page.get_contents()[0]} 0 R {extra} 0 R]")
+doc.xref_set_key(doc.pdf_catalog(), "ViewerPreferences", "<</Direction/R2L>>")
+doc.save("samples/sample-vertical-r2l.pdf", garbage=1, deflate=True)
+doc.close()
+print("ok (vertical r2l)")

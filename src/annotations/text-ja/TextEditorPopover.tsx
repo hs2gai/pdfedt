@@ -36,6 +36,7 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
   const [fontSize, setFontSize] = useState(style.fontSize);
   const [color, setColor] = useState(style.color);
   const [font, setFont] = useState<FontId>(style.font ?? 'gothic');
+  const [vertical, setVertical] = useState(!!style.vertical);
   const area = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') onCancel();
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onCommit(text, { fontSize, color, font });
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onCommit(text, { fontSize, color, font, vertical });
   };
 
   // Clamp the position so it does not overflow the right / bottom edge of the screen
@@ -64,6 +65,10 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
         <label>
           {t('common.font')}
           <FontSelect value={font} onChange={setFont} />
+        </label>
+        <label>
+          <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} />
+          {t('text.vertical')}
         </label>
       </div>
       <div className="popover-row">
@@ -98,7 +103,7 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
         <button
           type="button"
           className="primary"
-          onClick={() => onCommit(text, { fontSize, color, font })}
+          onClick={() => onCommit(text, { fontSize, color, font, vertical })}
           disabled={!text.trim()}
         >
           {t('common.ok')}

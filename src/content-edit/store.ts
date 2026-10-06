@@ -6,7 +6,8 @@ import type { PageObjectInfo } from './page-objects';
 export interface ContentEditState {
   /** pageIndex → object list (re-read after edits) */
   objects: Record<number, PageObjectInfo[]>;
-  selection: { pageIndex: number; indexes: number[] } | null;
+  /** Selected objects by objectKey (text inside forms is selected on its own) */
+  selection: { pageIndex: number; keys: string[] } | null;
   /** Movement while dragging (pt, top-left origin) */
   dragDelta: { dx: number; dy: number } | null;
   /** Marquee selection area (pt, top-left origin) */
@@ -17,6 +18,8 @@ export interface ContentEditState {
   edited: boolean;
   /** Number of undoable / redoable operations (updated by history.ts) */
   history: { undo: number; redo: number };
+  /** Short note on the last edit shown in the banner (e.g. the typeface moved text was written with) */
+  notice: string | null;
 }
 
 const initial: ContentEditState = {
@@ -27,6 +30,7 @@ const initial: ContentEditState = {
   showBackground: false,
   edited: false,
   history: { undo: 0, redo: 0 },
+  notice: null,
 };
 
 let state = initial;
@@ -48,9 +52,9 @@ export const contentEditStore = {
   },
 };
 
-/** Objects that are shown and selectable (background objects only when the user chose to show them) */
+/** Objects that are shown and selectable (background objects only when the user chose to show them; never containers) */
 export const pickableObjects = (list: PageObjectInfo[], showBackground: boolean) =>
-  showBackground ? list : list.filter((o) => !o.background);
+  list.filter((o) => !o.container && (showBackground || !o.background));
 
 export function useContentEditState(): ContentEditState {
   return useSyncExternalStore(contentEditStore.subscribe, contentEditStore.get);

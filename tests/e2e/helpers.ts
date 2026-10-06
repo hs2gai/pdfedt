@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { inflateSync } from 'node:zlib';
 
 // Resolve samples/ from the package.json directory as the root (__dirname is unavailable in ESM)
 export const samplesDir = resolve(process.cwd(), 'samples');
@@ -69,6 +70,21 @@ export async function saveVia(page: Page, label: string): Promise<Buffer> {
   const path = await download.path();
   expect(path).not.toBeNull();
   return readFileSync(path!);
+}
+
+/** Every stream in a PDF with its dictionary (inflated when Flate-compressed). Direct /Length only, as PDFium writes */
+export function pdfStreams(bytes: Buffer): { dict: string; data: Buffer }[] {
+  const pdf = bytes.toString('latin1');
+  const out: { dict: string; data: Buffer }[] = [];
+  for (const m of pdf.matchAll(/\d+\s+\d+\s+obj\s*<<((?:(?!endobj)[\s\S])*?)>>\s*stream\r?\n/g)) {
+    const length = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(m[1]);
+    if (!length) continue;
+    const data = bytes.subarray(m.index! + m[0].length, m.index! + m[0].length + Number(length[1]));
+    // Only plain Flate is decoded; other filters and chains (e.g. reportlab's ASCII85 + Flate) are returned as stored
+    const flate = /\/Filter\s*(\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(m[1]);
+    out.push({ dict: m[1], data: flate ? inflateSync(data) : Buffer.from(data) });
+  }
+  return out;
 }
 
 declare global {

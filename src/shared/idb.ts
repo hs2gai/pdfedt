@@ -3,13 +3,15 @@
  * (onupgradeneeded creates only the missing stores).
  */
 const DB_NAME = 'pdfedt';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   /** Recent file metadata (keyPath: id) */
   recentMeta: 'recent-meta',
   /** Recent file bytes (key: id) */
   recentBytes: 'recent-bytes',
+  /** Bytes of the file as first opened, for "revert to the original" (key: id) */
+  recentOriginal: 'recent-original',
   /** Custom stamps (keyPath: id) */
   stamps: 'stamp-templates',
 } as const;
@@ -17,6 +19,7 @@ export const STORES = {
 const KEY_PATHS: Record<string, string | undefined> = {
   [STORES.recentMeta]: 'id',
   [STORES.recentBytes]: undefined,
+  [STORES.recentOriginal]: undefined,
   [STORES.stamps]: 'id',
 };
 

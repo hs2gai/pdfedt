@@ -1,0 +1,49 @@
+diff --git a/dist/react/index.js b/dist/react/index.js
+index 706f9e011ec7da52d1ebb398c7d728b3328d3dd6..d4cf03f0b8f2c82325286faf75ee1f425e5e4e6b 100644
+--- a/dist/react/index.js
++++ b/dist/react/index.js
+@@ -2775,6 +2775,14 @@ function Highlight({
+     i
+   )) });
+ }
++// pdfedt: whether a markup segment lies on a vertical column. A segment taller than wide does; so does a short one
++// (one glyph, or tate-chu-yoko "12" set side by side) sharing its exact left and right edges with another segment,
++// as pdfedt aligns the glyph boxes of a column to one extent (src/pdf/text-geometry.ts)
++function pdfedtIsVertical(r, rects) {
++  // Marked by pdfedt's patch of plugin-selection while selecting; the shape is all that is left on a saved annotation
++  if (r.vertical || r.size.height > r.size.width) return true;
++  return r.size.width <= 2 * r.size.height && rects.some((o) => o !== r && Math.abs(o.origin.x - r.origin.x) < 0.5 && Math.abs(o.size.width - r.size.width) < 0.5);
++}
+ function Underline({
+   strokeColor,
+   opacity = 0.5,
+@@ -2808,10 +2816,9 @@ function Underline({
+         {
+           style: {
+             position: "absolute",
+-            left: 0,
+-            bottom: 0,
+-            width: "100%",
+-            height: thickness,
++            // pdfedt: on a vertical column, underline it down its right side, thinner
++            // (0.75pt, as written by pdfedt's src/pdf/markup-vertical.ts)
++            ...(pdfedtIsVertical(r, segmentRects) ? { top: 0, right: 0, height: "100%", width: 0.75 * scale } : { left: 0, bottom: 0, width: "100%", height: thickness }),
+             background: resolvedColor,
+             opacity,
+             pointerEvents: "none"
+@@ -2855,13 +2862,10 @@ function Strikeout({
+         {
+           style: {
+             position: "absolute",
+-            left: 0,
+-            top: "50%",
+-            width: "100%",
+-            height: thickness,
++            // pdfedt: on a vertical column, strike it out down its middle, thinner
++            ...(pdfedtIsVertical(r, segmentRects) ? { top: 0, left: "50%", height: "100%", width: 0.75 * scale, transform: "translateX(-50%)" } : { left: 0, top: "50%", width: "100%", height: thickness, transform: "translateY(-50%)" }),
+             background: resolvedColor,
+             opacity,
+-            transform: "translateY(-50%)",
+             pointerEvents: "none"
+           }
+         }

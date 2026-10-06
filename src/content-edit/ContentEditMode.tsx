@@ -11,11 +11,12 @@ import { DEFAULT_LOCK } from '../annotations/tools-setup';
 import type { PdfRuntime } from '../pdf/engine';
 import { getDocPtr, withPage } from '../pdf/raw';
 import { loadJaFont } from '../pdf/fonts/ja-font';
-import type { FontId } from '../pdf/fonts/catalog';
+import { fontLabel, type FontId } from '../pdf/fonts/catalog';
 import { guessFontId, isBoldFont } from '../pdf/fonts/match';
-import { findLocalFont, isBoldFace, subsetLocalFont, type LocalFontData } from '../pdf/fonts/local-fonts';
+import { findLocalFont, isBoldFace, localFontId, subsetLocalFont, type LocalFontData } from '../pdf/fonts/local-fonts';
 import { appSettings } from '../app/settings';
-import { PageObjects, type PageObjectInfo, type RemovedObject } from './page-objects';
+import { hasTrueTypeOutlines } from '../pdf/vertical-pdf';
+import { PageObjects, objectKey, type Change, type PageObjectInfo } from './page-objects';
 import { contentHistory } from './history';
 import { contentEditStore, pickableObjects, useContentEditState } from './store';
 import { TextReplaceDialog } from './TextReplaceDialog';
@@ -62,7 +63,7 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
   const pageHeight = (pageIndex: number) => docs?.getDocument(documentId)?.pages[pageIndex]?.size.height ?? 0;
   const withObjects = <T,>(pageIndex: number, fn: (po: PageObjects) => T): T =>
     withPage(runtime.native, documentId, pageIndex, (pagePtr) =>
-      fn(new PageObjects(runtime.pdfium, getDocPtr(runtime.native, documentId), pagePtr, pageHeight(pageIndex))),
+      fn(new PageObjects(runtime.pdfium, getDocPtr(runtime.native, documentId), pagePtr, pageIndex, pageHeight(pageIndex))),
     );
   const reload = (pageIndex: number) => {
     const list = withObjects(pageIndex, (po) => po.list());
@@ -76,27 +77,103 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
     reload(pageIndex);
     contentEditStore.set({ edited: true });
   };
+  const selectedObjects = (pageIndex: number, keys: string[]) =>
+    ensureObjects(pageIndex).filter((o) => keys.includes(objectKey(o)));
   /** Delete the selected objects (Undo restores them at their original positions) */
-  const removeObjects = (pageIndex: number, indexes: number[]) => {
-    let removed: RemovedObject[] | null = withObjects(pageIndex, (po) => po.remove(indexes));
-    if (!removed) return;
+  const removeObjects = (pageIndex: number, keys: string[]) => {
+    const refs = selectedObjects(pageIndex, keys);
+    let change: Change | null = withObjects(pageIndex, (po) => po.remove(refs));
+    if (!change) return;
     contentEditStore.set({ selection: null });
     refresh(pageIndex);
     contentHistory.push({
       label: 'delete',
       undo: () => {
-        withObjects(pageIndex, (po) => po.restore(removed!));
-        removed = null;
+        const c = change;
+        if (!c) return;
+        withObjects(pageIndex, (po) => po.revert(c));
+        // The originals are back on the page, so they are no longer ours to destroy
+        change = null;
         refresh(pageIndex);
-        contentEditStore.set({ selection: { pageIndex, indexes } });
+        contentEditStore.set({ selection: { pageIndex, keys } });
       },
       redo: () => {
-        removed = withObjects(pageIndex, (po) => po.remove(indexes));
+        change = withObjects(pageIndex, (po) => po.remove(refs));
         contentEditStore.set({ selection: null });
         refresh(pageIndex);
       },
       dispose: () => {
-        if (removed) withObjects(pageIndex, (po) => po.destroy(removed!));
+        const c = change;
+        if (c) withObjects(pageIndex, (po) => po.discard(c));
+      },
+    });
+  };
+  /**
+   * Font data to write text in place of object: the typeface chosen in the replace dialog, or by default the original
+   * one when it is installed on the PC (and the setting allows it), else a similar bundled one
+   */
+  const fontFor = async (object: PageObjectInfo, text: string, choice: FontId | 'local' = 'local') => {
+    const localFont =
+      choice === 'local' && appSettings.get().localFonts && object.font ? findLocalFont(object.font.name) : undefined;
+    const similar = object.font ? guessFontId(object.font.name, object.font.flags) : 'gothic';
+    const bundled = choice === 'local' ? similar : choice;
+    let fontData = localFont ? await subsetLocalFont(localFont, [text]) : (await loadJaFont(bundled)).subsetFor([text]);
+    let label = fontLabel(localFont ? localFontId(localFont) : bundled);
+    // Vertical text is written with TrueType outlines only; a CFF (OpenType) PC font falls back to a similar bundled one
+    if (object.vertical && !hasTrueTypeOutlines(fontData)) {
+      fontData = (await loadJaFont(similar)).subsetFor([text]);
+      label = fontLabel(similar);
+    }
+    // No synthetic bold needed when embedding an actual bold face
+    const bold = object.font ? isBoldFont(object.font.name, object.font.weight) && !(localFont && isBoldFace(localFont)) : false;
+    return { fontData, bold, label };
+  };
+  /**
+   * Move the selected objects. Text inside forms cannot leave its form as it is, so it is written again at the new
+   * place (PageObjects.rewrite) in the typeface fontFor picks, which the banner then names
+   */
+  const moveObjects = async (pageIndex: number, keys: string[], dx: number, dy: number) => {
+    const objects = selectedObjects(pageIndex, keys);
+    const tops = objects.filter((o) => !o.path).map((o) => o.index);
+    const nested = objects.filter((o) => o.path && !tops.includes(o.index) && o.text?.trim());
+    const items = await Promise.all(nested.map(async (o) => ({ ref: o, text: o.text!, dx, dy, ...(await fontFor(o, o.text!)) })));
+    let change: Change | null = null;
+    const apply = () =>
+      withObjects(pageIndex, (po) => {
+        if (!po.move(tops, dx, dy)) return false;
+        if (!items.length) return true;
+        change = po.rewrite(items);
+        if (!change) po.move(tops, -dx, -dy);
+        return !!change;
+      });
+    const moved = apply();
+    contentEditStore.set({ dragDelta: null });
+    if (!moved) return;
+    // The rewritten text gets new objects, so its keys no longer hold
+    if (items.length) {
+      const fonts = [...new Set(items.map((i) => i.label))].join('、');
+      contentEditStore.set({ selection: null, notice: t('content.notice.rewritten', { font: fonts }) });
+    }
+    refresh(pageIndex);
+    contentHistory.push({
+      label: 'move',
+      undo: () => {
+        const c = change;
+        withObjects(pageIndex, (po) => {
+          if (c) po.revert(c);
+          po.move(tops, -dx, -dy);
+        });
+        change = null;
+        refresh(pageIndex);
+        contentEditStore.set({ selection: { pageIndex, keys } });
+      },
+      redo: () => {
+        apply();
+        refresh(pageIndex);
+      },
+      dispose: () => {
+        const c = change;
+        if (c) withObjects(pageIndex, (po) => po.discard(c));
       },
     });
   };
@@ -135,7 +212,7 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
               if (hitAnnotation(pageIndex, pos)) return;
               const hit = hitTest(pageIndex, pos);
               if (!hit) return;
-              contentEditStore.set({ selection: { pageIndex, indexes: [hit.index] } });
+              contentEditStore.set({ selection: { pageIndex, keys: [objectKey(hit)] }, notice: null });
               onPickContent();
             },
           },
@@ -174,15 +251,14 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
               }
               const hit = hitTest(pageIndex, pos);
               const cur = contentEditStore.get().selection;
-              const selected = cur?.pageIndex === pageIndex ? cur.indexes : [];
+              const selected = cur?.pageIndex === pageIndex ? cur.keys : [];
+              contentEditStore.set({ notice: null });
               if (hit) {
-                let next: number[];
-                if (shift)
-                  next = selected.includes(hit.index)
-                    ? selected.filter((i) => i !== hit.index)
-                    : [...selected, hit.index];
-                else next = selected.includes(hit.index) ? selected : [hit.index];
-                contentEditStore.set({ selection: { pageIndex, indexes: next }, dragDelta: { dx: 0, dy: 0 } });
+                const key = objectKey(hit);
+                let next: string[];
+                if (shift) next = selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key];
+                else next = selected.includes(key) ? selected : [key];
+                contentEditStore.set({ selection: { pageIndex, keys: next }, dragDelta: { dx: 0, dy: 0 } });
                 gesture.current = { kind: 'drag', pageIndex, start: pos, moved: false };
               } else {
                 contentEditStore.set({ selection: null, marquee: { pageIndex, rect: rectFrom(pos, pos) } });
@@ -204,40 +280,28 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
               if (!g || g.pageIndex !== pageIndex) return;
               if (g.kind === 'drag') {
                 const sel = contentEditStore.get().selection;
-                const dx = pos.x - g.start.x;
-                const dy = pos.y - g.start.y;
-                contentEditStore.set({ dragDelta: null });
-                if (g.moved && sel && sel.indexes.length) {
-                  const indexes = sel.indexes;
-                  const apply = (sx: number, sy: number) => {
-                    withObjects(pageIndex, (po) => po.move(indexes, sx, sy));
-                    refresh(pageIndex);
-                  };
-                  apply(dx, dy);
-                  contentHistory.push({
-                    label: 'move',
-                    undo: () => {
-                      apply(-dx, -dy);
-                      contentEditStore.set({ selection: { pageIndex, indexes } });
-                    },
-                    redo: () => apply(dx, dy),
-                  });
+                if (g.moved && sel && sel.keys.length) {
+                  // The preview stays until the move is done (rewriting text inside forms loads fonts first)
+                  void moveObjects(pageIndex, sel.keys, pos.x - g.start.x, pos.y - g.start.y);
+                } else {
+                  contentEditStore.set({ dragDelta: null });
                 }
               } else {
                 const box = rectFrom(g.start, pos);
                 contentEditStore.set({ marquee: null });
                 if (g.moved) {
                   // Only objects entirely inside the box (large objects such as page-wide shapes are not caught by accident)
-                  const indexes = pickable(pageIndex)
+                  const keys = pickable(pageIndex)
                     .filter((o) => encloses(box, o.rect))
-                    .map((o) => o.index);
-                  contentEditStore.set({ selection: indexes.length ? { pageIndex, indexes } : null });
+                    .map(objectKey);
+                  contentEditStore.set({ selection: keys.length ? { pageIndex, keys } : null });
                 }
               }
             },
             onDoubleClick: (pos: Position, evt: EmbedPdfPointerEvent) => {
               const hit = hitTest(pageIndex, pos);
-              if (hit?.type !== 'text') return;
+              // Text objects (inside forms too), and forms holding vertical text from an earlier replacement
+              if (hit?.type !== 'text' && !hit?.vertical) return;
               const native = evt as unknown as { clientX?: number; clientY?: number };
               const localFont = appSettings.get().localFonts && hit.font ? findLocalFont(hit.font.name) : undefined;
               setReplaceTarget({ pageIndex, object: hit, anchor: { x: native.clientX ?? 0, y: native.clientY ?? 0 }, localFont });
@@ -265,9 +329,9 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
       const t = e.target as HTMLElement | null;
       if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
       const sel = contentEditStore.get().selection;
-      if (!sel?.indexes.length) return;
+      if (!sel?.keys.length) return;
       e.preventDefault();
-      removeObjects(sel.pageIndex, sel.indexes);
+      removeObjects(sel.pageIndex, sel.keys);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -281,33 +345,29 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
     setReplaceTarget(null);
     if (!target || !text.trim()) return;
     const { pageIndex, object } = target;
-    const localFont = fontId === 'local' ? target.localFont : undefined;
-    const fontData = localFont
-      ? await subsetLocalFont(localFont, [text])
-      : (await loadJaFont(fontId === 'local' ? 'gothic' : fontId)).subsetFor([text]); // 'local' only arrives when there is no localFont
-    // No synthetic bold needed when embedding an actual bold face
-    const bold = object.font ? isBoldFont(object.font.name, object.font.weight) && !(localFont && isBoldFace(localFont)) : false;
-    // Create a new object on every replacement. Keep the old one for Undo; Redo recreates it
-    let old = withObjects(pageIndex, (po) => po.replaceText(object.index, text, fontData, bold));
-    if (!old) return;
+    const { fontData, bold } = await fontFor(object, text, fontId);
+    // Create new objects on every replacement. Keep the original for Undo; Redo recreates them
+    let done: Change | null = withObjects(pageIndex, (po) => po.replaceText(object, text, fontData, bold));
+    if (!done) return;
     contentEditStore.set({ selection: null });
     refresh(pageIndex);
     contentHistory.push({
       label: 'replace text',
       undo: () => {
-        withObjects(pageIndex, (po) => {
-          const cur = po.remove([object.index]);
-          if (cur) po.destroy(cur);
-          po.restore([old!]);
-        });
+        const c = done;
+        if (!c) return;
+        withObjects(pageIndex, (po) => po.revert(c));
+        // The original is back on the page, so it is no longer ours to destroy
+        done = null;
         refresh(pageIndex);
       },
       redo: () => {
-        old = withObjects(pageIndex, (po) => po.replaceText(object.index, text, fontData, bold));
+        done = withObjects(pageIndex, (po) => po.replaceText(object, text, fontData, bold));
         refresh(pageIndex);
       },
       dispose: () => {
-        if (old) withObjects(pageIndex, (po) => po.destroy([old!]));
+        const c = done;
+        if (c) withObjects(pageIndex, (po) => po.discard(c));
       },
     });
   };
@@ -317,7 +377,8 @@ export function ContentEditMode({ runtime, documentId, active, selecting, onPick
       <div className="content-edit-banner">
         {t('content.banner')}
         {selecting ? t('content.banner.selecting') : t('content.banner.otherTool')}
-        {selecting && state.selection && t('content.banner.selected', { count: state.selection.indexes.length })}
+        {selecting && state.selection && t('content.banner.selected', { count: state.selection.keys.length })}
+        {state.notice && ` ${state.notice}`}
         {selecting && (
           <label className="content-edit-banner-toggle">
             <input

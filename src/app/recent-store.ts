@@ -8,9 +8,11 @@ import { openDb, idbRequest, idbDone, STORES } from '../shared/idb';
  * Registered when opened and updated to the latest state on every annotation / content edit,
  * so it serves both restoring after reload and the "recent files" list.
  * Metadata and bytes are kept in separate stores so listing does not read the huge byte arrays.
+ * The file as first opened is kept as well, for "revert to the original".
  */
 const META = STORES.recentMeta;
 const BYTES = STORES.recentBytes;
+const ORIGINAL = STORES.recentOriginal;
 export const RECENT_LIMIT = 20;
 
 export interface RecentMeta {
@@ -38,24 +40,30 @@ export async function listRecent(): Promise<RecentMeta[]> {
   return all.sort((a, b) => b.savedAt - a.savedAt);
 }
 
-export async function getRecentBytes(id: string): Promise<Uint8Array | undefined> {
+const getBytes = async (store: string, id: string) => {
   const db = await openDb();
-  return idbRequest(db.transaction(BYTES).objectStore(BYTES).get(id) as IDBRequest<Uint8Array | undefined>);
-}
+  return idbRequest(db.transaction(store).objectStore(store).get(id) as IDBRequest<Uint8Array | undefined>);
+};
+export const getRecentBytes = (id: string) => getBytes(BYTES, id);
+/** The file as first opened; undefined for entries saved before this was kept */
+export const getRecentOriginal = (id: string) => getBytes(ORIGINAL, id);
 
-/** Add / update. Old entries beyond the limit are removed */
-export async function putRecent(meta: RecentMeta, bytes: Uint8Array): Promise<void> {
+/** A partial view would clone the whole underlying buffer, so slice it out first when needed */
+const owned = (bytes: Uint8Array) =>
+  bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength ? bytes : bytes.slice();
+
+/**
+ * Add / update. Old entries beyond the limit are removed.
+ * `original`: the file as opened from disk (only when opening it; snapshots keep the stored one)
+ */
+export async function putRecent(meta: RecentMeta, bytes: Uint8Array, original?: Uint8Array): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction([META, BYTES], 'readwrite');
-  // A partial view would clone the whole underlying buffer, so slice it out first when needed
-  const owned = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength ? bytes : bytes.slice();
+  const tx = db.transaction([META, BYTES, ORIGINAL], 'readwrite');
   tx.objectStore(META).put(meta);
-  tx.objectStore(BYTES).put(owned, meta.id);
+  tx.objectStore(BYTES).put(owned(bytes), meta.id);
+  if (original) tx.objectStore(ORIGINAL).put(owned(original), meta.id);
   const all = await idbRequest(tx.objectStore(META).getAll() as IDBRequest<RecentMeta[]>);
-  for (const old of all.sort((a, b) => b.savedAt - a.savedAt).slice(RECENT_LIMIT)) {
-    tx.objectStore(META).delete(old.id);
-    tx.objectStore(BYTES).delete(old.id);
-  }
+  for (const old of all.sort((a, b) => b.savedAt - a.savedAt).slice(RECENT_LIMIT)) deleteEntry(tx, old.id);
   await idbDone(tx);
   notify();
 }
@@ -72,11 +80,14 @@ export async function touchRecent(id: string): Promise<void> {
 
 export async function removeRecent(id: string): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction([META, BYTES], 'readwrite');
-  tx.objectStore(META).delete(id);
-  tx.objectStore(BYTES).delete(id);
+  const tx = db.transaction([META, BYTES, ORIGINAL], 'readwrite');
+  deleteEntry(tx, id);
   await idbDone(tx);
   notify();
+}
+
+function deleteEntry(tx: IDBTransaction, id: string) {
+  for (const store of [META, BYTES, ORIGINAL]) tx.objectStore(store).delete(id);
 }
 
 /** Subscribe to the list. Re-read on every add / remove */

@@ -76,7 +76,7 @@ export function TextJaTool({ runtime, documentId, active, callout, onDone }: Pro
       ? annotations?.forDocument(documentId).getAnnotationById(annotationId)?.object
       : undefined;
     const data = existing ? readTextAnnotation(existing) : null;
-    return data ? { fontSize: data.fontSize, color: data.color, font: data.font } : style;
+    return data ? { fontSize: data.fontSize, color: data.color, font: data.font, vertical: data.vertical } : style;
   };
 
   /** Editing an existing annotation means "delete and recreate at the same position" (the appearance PDF must be regenerated) */

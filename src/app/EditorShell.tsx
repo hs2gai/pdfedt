@@ -13,6 +13,7 @@ import { copySelection, regionStore, useRegionSelection } from '../viewer/Region
 import { ThumbnailSidebar } from '../viewer/ThumbnailSidebar';
 import { SearchBar } from '../viewer/SearchBar';
 import { printDocument } from '../viewer/print';
+import { useSelectionDebug } from '../viewer/useSelectionDebug';
 import { Toolbar } from '../annotations/Toolbar';
 import { TextJaTool } from '../annotations/text-ja/TextJaTool';
 import { StampTool } from '../annotations/stamps/StampTool';
@@ -32,6 +33,7 @@ import { contentHistory } from '../content-edit/history';
 import { getRecentBytes, putRecent, sourceKeyOf, touchRecent, useRecentList, type RecentMeta } from './recent-store';
 import { useRecentSnapshot } from './useRecentSnapshot';
 import { usePageOperations } from './usePageOperations';
+import { useResetDocument } from './useResetDocument';
 import { formatSavedAt } from './RecentMenu';
 import { appSettings } from './settings';
 import { Brand } from './Brand';
@@ -148,7 +150,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
       contentEdited: false,
     };
     await openBytes(bytes, entry);
-    await putRecent(entry, bytes);
+    await putRecent(entry, bytes, bytes);
   };
   const openRecent = async (meta: RecentMeta) => {
     const bytes = await getRecentBytes(meta.id);
@@ -227,6 +229,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
   // Text selection or a region dragged on empty space with the select tool → Ctrl+C
   const { provides: selectionCap } = useSelectionCapability();
   const { provides: renderCap } = useRenderCapability();
+  useSelectionDebug(selectionCap);
   useRegionSelection(activeDocumentId, tool === 'select');
   const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
   const copy = () => {
@@ -309,6 +312,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
     reopen: openBytes,
     onStatus: setStatus,
   });
+  const resetDoc = useResetDocument({ documentId: activeDocumentId, entry: recentEntry, reopen: openBytes, onStatus: setStatus });
   const pagesEditable = loaded && contentEdit !== 'on' && (info?.canModify ?? true) && !(info && info.signatures > 0 && (info.docMdp === 1 || info.docMdp === 2));
 
   return (
@@ -346,6 +350,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
         canPrint={canPrint}
         printing={printing}
         onPrint={() => void print()}
+        onReset={resetDoc.request}
       />
       {search.open && activeDocumentId && loaded && (
         <SearchBar key={activeDocumentId} documentId={activeDocumentId} focusKey={search.focusKey} onClose={closeSearch} />
@@ -363,6 +368,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
       )}
       {status && <div className="status-bar">{status}</div>}
       {pageOps.dialog}
+      {resetDoc.dialog}
       {activeDocumentId && loaded && (
         <ContentEditMode
           runtime={runtime}

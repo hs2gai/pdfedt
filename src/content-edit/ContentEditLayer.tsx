@@ -1,3 +1,4 @@
+import { objectKey } from './page-objects';
 import { pickableObjects, useContentEditState } from './store';
 
 /**
@@ -7,17 +8,18 @@ import { pickableObjects, useContentEditState } from './store';
 export function ContentEditLayer({ pageIndex, scale }: { pageIndex: number; scale: number }) {
   const { objects, selection, dragDelta, marquee, showBackground } = useContentEditState();
   const list = pickableObjects(objects[pageIndex] ?? [], showBackground);
-  const selected = selection?.pageIndex === pageIndex ? new Set(selection.indexes) : new Set<number>();
+  const selected = selection?.pageIndex === pageIndex ? new Set(selection.keys) : new Set<string>();
   const dx = (dragDelta?.dx ?? 0) * scale;
   const dy = (dragDelta?.dy ?? 0) * scale;
 
   return (
     <div className="content-edit-layer" aria-hidden="true">
       {list.map((o) => {
-        const isSel = selected.has(o.index);
+        const key = objectKey(o);
+        const isSel = selected.has(key);
         return (
           <div
-            key={o.index}
+            key={key}
             className={`ce-object ce-${o.type}${o.background ? ' ce-background' : ''}${isSel ? ' selected' : ''}`}
             style={{
               left: o.rect.origin.x * scale + (isSel ? dx : 0),

@@ -4,6 +4,7 @@ import wasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import { FontProvider } from './fonts/font-provider';
 import { installTextGeometryFix } from './text-geometry';
 import { installRegexSearch } from './regex-search';
+import { installVerticalMarkup } from './markup-vertical';
 
 /**
  * Holds both EmbedPDF's high-level engine and the raw PDFium module.
@@ -35,5 +36,6 @@ export async function createPdfRuntime(): Promise<PdfRuntime> {
   const runtime = { engine, native, pdfium, fonts };
   installTextGeometryFix(runtime);
   installRegexSearch(native);
+  installVerticalMarkup(runtime);
   return runtime;
 }

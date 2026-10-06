@@ -1,0 +1,49 @@
+diff --git a/dist/index.js b/dist/index.js
+index 396ed08284fc85a081096877c053f2212c625181..9788b7cd85c204fd460d96b64068d001c4eaf4b0 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -302,14 +302,19 @@ function rectsWithinSlice(geo, from, to, merge = true) {
+     let widthSum = 0;
+     let prevRight = -Infinity;
+     const flushSubRun = () => {
+-      if (minX !== Infinity && charCount > 0) {
++      // pdfedt: also leave out boxes squashed to under 2pt (a zero-height glyph at the head of a vertical column):
++      // there is nothing to mark, and markup made from them comes out as stray ticks
++      if (minX !== Infinity && charCount > 0 && maxX - minX >= 2 && maxY - minY >= 2) {
+         textRuns.push({
+           rect: {
+             origin: { x: minX, y: minY },
+-            size: { width: maxX - minX, height: maxY - minY }
++            size: { width: maxX - minX, height: maxY - minY },
++            // pdfedt: runs pdfedt found on a vertical column (src/pdf/text-geometry.ts); markup reads it from the rect
++            ...(run.vertical ? { vertical: true } : {})
+           },
+           charCount,
+-          fontSize: run.fontSize
++          fontSize: run.fontSize,
++          vertical: !!run.vertical
+         });
+       }
+       minX = Infinity;
+@@ -380,6 +385,13 @@ function getVerticalOverlap(rect1, rect2) {
+   return intersectRect.size.height / unionRect.size.height;
+ }
+ function shouldMergeHorizontalRects(textRun1, textRun2) {
++  // pdfedt: runs of one vertical column (same extent, the second right below the first) join into one rect;
++  // rects are never merged across columns
++  if (textRun1.vertical || textRun2.vertical) {
++    const a = textRun1.rect;
++    const b = textRun2.rect;
++    return textRun1.vertical && textRun2.vertical && Math.abs(a.origin.x - b.origin.x) < 0.5 && Math.abs(a.size.width - b.size.width) < 0.5 && b.origin.y >= a.origin.y && b.origin.y - (a.origin.y + a.size.height) <= a.size.width;
++  }
+   const FONT_SIZE_RATIO_THRESHOLD = 1.5;
+   if (textRun1.fontSize != null && textRun2.fontSize != null && textRun1.fontSize > 0 && textRun2.fontSize > 0) {
+     const ratio = Math.max(textRun1.fontSize, textRun2.fontSize) / Math.min(textRun1.fontSize, textRun2.fontSize);
+@@ -410,6 +422,7 @@ function mergeAdjacentRects(textRuns) {
+     if (previousTextRun && currentRect) {
+       if (shouldMergeHorizontalRects(previousTextRun, textRun)) {
+         currentRect = rectUnion(currentRect, textRun.rect);
++        if (textRun.vertical) currentRect.vertical = true;
+       } else {
+         results.push(currentRect);
+         currentRect = textRun.rect;

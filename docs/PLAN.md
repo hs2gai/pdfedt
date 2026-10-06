@@ -116,7 +116,7 @@
 
 **Phase 0 の出口条件**: S1〜S5 が通ること。S2 が (b) に落ちた場合は仕様書に明記して進む。
 
-> **結果（2026-09-20）**: S1〜S7 すべて通過。S2 は (b) Stamp 経路を採用（`@embedpdf/pdfium` 2.15.1 の FreeText 外観生成に不具合、runtime main では修正済み）。詳細は `docs/SPIKES.md`。
+> **結果（2026-09-20）**: S1〜S7 すべて通過。S2 は (b) Stamp 経路を採用（`@embedpdf/pdfium` 2.15.1 の FreeText 外観生成に不具合、runtime main では修正済み）。
 
 ### Phase 1 — v1: 注釈エディタ（公開可能な最小製品）
 
@@ -205,7 +205,6 @@ E2E は `tests/e2e/extension.spec.ts`（Playwright の永続コンテキスト�
 pdfedt/
 ├─ docs/
 │  ├─ PLAN.md          ← 本書
-│  ├─ SPIKES.md        ← 技術検証の記録
 │  └─ INTEROP.md       ← ビューア互換性の確認手順と結果
 ├─ public/
 │  ├─ fonts/           ← 同梱フォント（OFL、ライセンスファイル同梱）
