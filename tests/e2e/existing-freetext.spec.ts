@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { openPdf } from './helpers';
-import { existsSync, readFileSync } from 'node:fs';
+import { openPdf, saveVia } from './helpers';
+import { existsSync } from 'node:fs';
 
 /** Local-only test document (contains Acrobat Japanese typewriter annotations; not committed to the repository) */
 const FREETEXT_PDF = 'docs/private/test.pdf';
@@ -39,17 +39,14 @@ test('既存の FreeText は外観を保ったまま移動できる', async ({ p
   await page.mouse.up();
   await page.waitForTimeout(800);
 
-  const after = await page.evaluate((id: string) => window.__pdf.annotations.getAnnotationById(id).object.rect, before.id);
+  const after = await page.evaluate(
+    (id: string) => window.__pdf.annotations.getAnnotationById(id).object.rect,
+    before.id,
+  );
   expect(after.origin.x).toBeGreaterThan(before.rect.origin.x + 10);
 
   // Save and check that the appearance stream still uses the original font (MicrosoftYaHeiUI)
-  await page.locator('.toolbar .save-btn').click();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.locator('.menu-list button', { hasText: '新ファイルで保存' }).click(),
-  ]);
-  await download.saveAs('_spike-out/existing-freetext.pdf');
-  const saved = readFileSync('_spike-out/existing-freetext.pdf').toString('latin1');
+  const saved = (await saveVia(page, '新ファイルで保存')).toString('latin1');
   // The original appearance (/AP referencing the font Acrobat embedded) is kept and not regenerated with Helvetica
   expect(saved).toMatch(/\/Resources\s*<<\s*\/Font\s*<<\s*\/AAAAAA\+MicrosoftYaHeiUI/);
 });

@@ -1,16 +1,16 @@
-import { test, expect } from '@playwright/test';
-import { openPdf, pageGeometry, addText, annotationTypes } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { openPdf, pageGeometry, addText, annotationTypes, waitUntilOpened } from './helpers';
 
 const STAMP = 13;
 
 /** Reloads the page, accepting the beforeunload prompt */
-async function reloadAccepting(page: import('@playwright/test').Page) {
+async function reloadAccepting(page: Page) {
   const dialog = page.waitForEvent('dialog');
   await Promise.all([page.reload(), dialog.then((d) => d.accept())]);
   expect((await dialog).type()).toBe('beforeunload');
 }
 
-const recentMenu = (page: import('@playwright/test').Page) => page.locator('button[aria-label="最近使ったファイル"]');
+const recentMenu = (page: Page) => page.locator('button[aria-label="最近使ったファイル"]');
 
 test('注釈した状態がリロード後に「最近使ったファイル」から復元できる', async ({ page }) => {
   await openPdf(page, 'sample-ja-form.pdf');
@@ -22,7 +22,7 @@ test('注釈した状態がリロード後に「最近使ったファイル」�
 
   // By default the previous work reopens automatically on startup, annotations included
   await reloadAccepting(page);
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(500);
   await expect(page.locator('.toolbar .doc-name')).toHaveText('sample-ja-form.pdf');
   expect(await annotationTypes(page)).toEqual([STAMP]);
@@ -40,7 +40,7 @@ test('注釈した状態がリロード後に「最近使ったファイル」�
   await recentMenu(page).click();
   await expect(page.locator('.recent-row').first()).toContainText('sample-noembed.pdf');
   await page.locator('.recent-row', { hasText: 'sample-ja-form.pdf' }).locator('button').first().click();
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(800);
   await recentMenu(page).click();
   await expect(page.locator('.recent-row').first()).toContainText('sample-ja-form.pdf');
@@ -52,6 +52,6 @@ test('注釈した状態がリロード後に「最近使ったファイル」�
   await reloadAccepting(page);
   await expect(page.locator('.resume-btn')).toContainText('sample-ja-form.pdf');
   await page.locator('.resume-btn').click();
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await expect(page.locator('.toolbar .doc-name')).toHaveText('sample-ja-form.pdf');
 });

@@ -1,9 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { IconButton } from '../annotations/Toolbar';
+import { IconButton } from '../annotations/IconButton';
 import { appSettings, useAppSettings, type Locale } from './settings';
 import { loadLocalFontCatalog, supportsLocalFonts } from '../pdf/fonts/local-fonts';
 import { useDismiss } from '../shared/useDismiss';
 import { LOCALES, useT } from '../i18n';
+
+/** Public repository (source code, releases) */
+const REPOSITORY_URL = 'https://github.com/hs2gai/pdfugu';
 
 /** Settings menu at the right end of the toolbar */
 export function SettingsMenu() {
@@ -91,7 +94,12 @@ export function SettingsMenu() {
               </span>
             </label>
           )}
-          <div className="menu-help settings-version">pdfugu {__APP_VERSION__}</div>
+          <div className="menu-help settings-version">
+            {/* Opened only when clicked: nothing is fetched from there by the app (P1) */}
+            <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer" title={t('settings.repository')}>
+              pdfugu {__APP_VERSION__}
+            </a>
+          </div>
         </div>
       )}
     </div>

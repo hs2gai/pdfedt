@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { TextStyle } from './text-annotation';
-import type { FontId } from '../../pdf/fonts/catalog';
+import { DEFAULT_FONT_ID, type FontId } from '../../pdf/fonts/catalog';
 import { FontSelect } from '../FontSelect';
+import { ColorSelect } from '../StyleControls';
+import { INK_COLORS, hexToRgb, rgbToHex } from '../annot-style';
 import { useT } from '../../i18n';
 
 export interface TextEditorRequest {
@@ -23,11 +25,6 @@ interface Props {
 }
 
 const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 24];
-const COLORS: { id: 'black' | 'red' | 'blue'; value: TextStyle['color'] }[] = [
-  { id: 'black', value: { r: 0, g: 0, b: 0 } },
-  { id: 'red', value: { r: 200, g: 0, b: 0 } },
-  { id: 'blue', value: { r: 0, g: 60, b: 200 } },
-];
 
 /** Text input popover. Ctrl+Enter confirms, Esc cancels */
 export function TextEditorPopover({ request, style, onCommit, onCancel }: Props) {
@@ -35,7 +32,7 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
   const t = useT();
   const [fontSize, setFontSize] = useState(style.fontSize);
   const [color, setColor] = useState(style.color);
-  const [font, setFont] = useState<FontId>(style.font ?? 'gothic');
+  const [font, setFont] = useState<FontId>(style.font ?? DEFAULT_FONT_ID);
   const [vertical, setVertical] = useState(!!style.vertical);
   const area = useRef<HTMLTextAreaElement>(null);
 
@@ -82,20 +79,7 @@ export function TextEditorPopover({ request, style, onCommit, onCancel }: Props)
             ))}
           </select>
         </label>
-        <span className="swatches">
-          {COLORS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              title={t(`text.color.${c.id}`)}
-              className={
-                c.value.r === color.r && c.value.g === color.g && c.value.b === color.b ? 'swatch active' : 'swatch'
-              }
-              style={{ background: `rgb(${c.value.r},${c.value.g},${c.value.b})` }}
-              onClick={() => setColor(c.value)}
-            />
-          ))}
-        </span>
+        <ColorSelect value={rgbToHex(color)} palette={INK_COLORS} onChange={(hex) => setColor(hexToRgb(hex))} />
         <span className="spacer" />
         <button type="button" onClick={onCancel}>
           {t('common.discard')}

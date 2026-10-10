@@ -10,6 +10,7 @@ import type { PdfRuntime } from '../../pdf/engine';
 import { buildCalloutAppearance, buildTextAppearance } from '../../pdf/appearance';
 import { loadJaFont } from '../../pdf/fonts/ja-font';
 import { DEFAULT_FONT_ID, type FontId } from '../../pdf/fonts/catalog';
+import { addAppearanceAnnotation, readPdfa } from '../appearance-annotation';
 
 /** Visual style of a text annotation. Stored in the annotation's custom.pdfa so it can be re-edited */
 export interface TextStyle {
@@ -35,11 +36,8 @@ export interface TextAnnotationData extends TextStyle {
 export const DEFAULT_TEXT_STYLE: TextStyle = { fontSize: 11, color: { r: 0, g: 0, b: 0 }, font: DEFAULT_FONT_ID };
 
 /** Returns the contents if this annotation is one of our text annotations */
-export function readTextAnnotation(annotation: PdfAnnotationObject): TextAnnotationData | null {
-  if (annotation.type !== PdfAnnotationSubtype.STAMP) return null;
-  const pdfa = (annotation.custom as { pdfa?: TextAnnotationData } | undefined)?.pdfa;
-  return pdfa?.kind === 'text' ? pdfa : null;
-}
+export const readTextAnnotation = (annotation: PdfAnnotationObject) =>
+  readPdfa<TextAnnotationData>(annotation, 'text');
 
 /**
  * Adds Japanese text as a Stamp annotation.
@@ -102,12 +100,6 @@ export async function createTextAnnotation(
       },
     },
   };
-  const pdfBuffer = appearance.pdf.buffer.slice(
-    appearance.pdf.byteOffset,
-    appearance.pdf.byteOffset + appearance.pdf.byteLength,
-  ) as ArrayBuffer;
-  annotations
-    .forDocument(documentId)
-    .createAnnotation(pageIndex, annotation, { data: pdfBuffer, mimeType: 'application/pdf' });
+  addAppearanceAnnotation(annotations, documentId, annotation, appearance.pdf);
   return id;
 }

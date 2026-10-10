@@ -1,7 +1,7 @@
 {
   "name": "pdfugu",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.7.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -10,6 +10,7 @@
     "build:ext": "tsc -b && vite build --mode extension",
     "preview": "vite preview",
     "typecheck": "tsc -b",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"tests/**/*.ts\" \"extension/**/*.{ts,tsx}\" \"*.config.ts\"",
     "build:e2e": "cross-env VITE_E2E=1 vite build",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -51,10 +52,11 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "cross-env": "^10.1.0",
+    "prettier": "^3.9.9",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^5.0.1",
-    "wrangler": "^4.135.0"
+    "wrangler": "^4.147.0"
   }
 }

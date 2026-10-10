@@ -244,7 +244,7 @@ export interface TextAppearanceSpec {
 }
 
 /** Ascent of BIZ UDPGothic (ratio to em). Used to compute the baseline position */
-export const FONT_ASCENT = 0.88;
+const FONT_ASCENT = 0.88;
 
 interface TextBlock {
   width: number;

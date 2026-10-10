@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample, selectTool } from './helpers';
+import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample, selectTool, reopen } from './helpers';
 
 // PdfAnnotationSubtype from @embedpdf/models
 const TEXT = 1;
@@ -116,9 +116,7 @@ test.describe('保存', () => {
     expect(saved.length - original.length).toBeLessThan(12_000);
 
     // The saved file reopens and the annotation is still there (verified by PDFium itself)
-    await page.locator('input[type=file]').first().setInputFiles({ name: 'saved.pdf', mimeType: 'application/pdf', buffer: saved });
-    await page.waitForSelector('.page img');
-    await page.waitForTimeout(800);
+    await reopen(page, saved);
     expect(await annotationTypes(page)).toEqual([STAMP]);
   });
 

@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { openPdf, pageGeometry, addText, annotationTypes, selectTool } from './helpers';
+import {
+  openPdf,
+  pageGeometry,
+  addText,
+  annotationTypes,
+  selectTool,
+  downloadBytes,
+  reopenAfterContentEdit,
+} from './helpers';
 
 /** Phase 3: content edit mode (gate -> select, move, replace text, marquee delete -> save under a new name) */
 test('本文編集モードで移動・置換・削除して確定保存できる', async ({ page }) => {
@@ -62,24 +70,13 @@ test('本文編集モードで移動・置換・削除して確定保存でき�
   // Incremental save is unavailable, and the full save uses a new file name
   await page.locator('.toolbar .save-btn').click();
   await expect(page.locator('.menu-list button', { hasText: '注釈付きで保存' })).toBeDisabled();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page
-      .locator('.menu-list button')
-      .filter({ has: page.locator('.menu-label', { hasText: '新ファイルで保存' }) })
-      .click(),
-  ]);
-  expect(download.suggestedFilename()).toBe('sample-ja-form_n.pdf');
+  const { bytes, filename } = await downloadBytes(page, () =>
+    page.locator('.menu-list button', { has: page.locator('.menu-label', { hasText: '新ファイルで保存' }) }).click(),
+  );
+  expect(filename).toBe('sample-ja-form_n.pdf');
 
   // Reopen the exported PDF: the replaced text is in the content and the deleted text is gone
-  const bytes = (await import('node:fs')).readFileSync((await download.path())!);
-  await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
-  await page
-    .locator('input[type=file]')
-    .first()
-    .setInputFiles({ name: 'edited.pdf', mimeType: 'application/pdf', buffer: bytes });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(500);
+  await reopenAfterContentEdit(page, bytes);
   const text: string = await page.evaluate(async () => {
     const rt = window.__pdf.runtime;
     const doc = window.__pdf.docs.getActiveDocument();

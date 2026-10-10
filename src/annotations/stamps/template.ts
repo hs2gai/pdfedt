@@ -81,7 +81,7 @@ export const STAMP_COLORS: { id: 'red' | 'blue' | 'black'; rgb: RGB }[] = [
   { id: 'blue', rgb: { r: 24, g: 72, b: 200 } },
   { id: 'black', rgb: { r: 30, g: 30, b: 30 } },
 ];
-export const colorRgb = (id: string | undefined): RGB =>
+const colorRgb = (id: string | undefined): RGB =>
   STAMP_COLORS.find((c) => c.id === id)?.rgb ?? STAMP_COLORS[0].rgb;
 
 /** Display name. Built-ins use i18n (stampTemplate.<id>); custom stamps use their own name */
@@ -135,7 +135,7 @@ export function templateFields(template: StampTemplate): StampField[] {
   return [...seen.values()];
 }
 
-export function resolveText(text: string, values: Record<string, string>): string {
+function resolveText(text: string, values: Record<string, string>): string {
   return text.replace(FIELD_RE, (_, key: string, def?: string) => values[key.trim()] ?? def ?? '');
 }
 

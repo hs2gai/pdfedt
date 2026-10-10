@@ -13,7 +13,7 @@ import { openDb, idbRequest, idbDone, STORES } from '../shared/idb';
 const META = STORES.recentMeta;
 const BYTES = STORES.recentBytes;
 const ORIGINAL = STORES.recentOriginal;
-export const RECENT_LIMIT = 20;
+const RECENT_LIMIT = 20;
 
 export interface RecentMeta {
   id: string;
@@ -34,7 +34,7 @@ const notify = () => listeners.forEach((l) => l());
 export const sourceKeyOf = (file: File) => `${file.name}|${file.size}|${file.lastModified}`;
 
 /** Newest first */
-export async function listRecent(): Promise<RecentMeta[]> {
+async function listRecent(): Promise<RecentMeta[]> {
   const db = await openDb();
   const all = await idbRequest(db.transaction(META).objectStore(META).getAll() as IDBRequest<RecentMeta[]>);
   return all.sort((a, b) => b.savedAt - a.savedAt);

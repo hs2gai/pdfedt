@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { inflateSync } from 'node:zlib';
 
 // Resolve samples/ from the package.json directory as the root (__dirname is unavailable in ESM)
-export const samplesDir = resolve(process.cwd(), 'samples');
+const samplesDir = resolve(process.cwd(), 'samples');
 export const sample = (name: string) => resolve(samplesDir, name);
 
 /** Opens the app, loads a PDF and waits until the first page is rendered */
@@ -12,8 +12,42 @@ export async function openPdf(page: Page, file: string) {
   await page.goto('/');
   await page.waitForSelector('input[type=file]', { state: 'attached' });
   await page.locator('input[type=file]').first().setInputFiles(sample(file));
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(300);
+}
+
+/** Waits until the first page is drawn and the loading overlay (which keeps input out) is gone */
+export async function waitUntilOpened(page: Page) {
+  await page.waitForSelector('.page img');
+  await expect(page.locator('.loading-overlay')).toHaveCount(0);
+}
+
+/** Opens bytes through the file input, as a picked file. Waiting is left to the caller (a password prompt may come first) */
+export async function openBytes(page: Page, bytes: Buffer, name = 'saved.pdf') {
+  await page.locator('input[type=file]').first().setInputFiles({ name, mimeType: 'application/pdf', buffer: bytes });
+}
+
+/** Opens bytes in place of the document and waits until the first page is rendered */
+export async function reopen(page: Page, bytes: Buffer, settle = 800) {
+  await openBytes(page, bytes);
+  await waitUntilOpened(page);
+  await page.waitForTimeout(settle);
+}
+
+/** Leaves content editing mode and opens the exported bytes in place of the document */
+export async function reopenAfterContentEdit(page: Page, bytes: Buffer) {
+  await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
+  await reopen(page, bytes, 500);
+}
+
+/** Drags on the first page between two points given in pt (top-left origin) */
+export async function dragPt(page: Page, from: [number, number], to: [number, number], settle = 300) {
+  const { box, scale } = await pageGeometry(page);
+  await page.mouse.move(box.x + from[0] * scale, box.y + from[1] * scale);
+  await page.mouse.down();
+  await page.mouse.move(box.x + to[0] * scale, box.y + to[1] * scale, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(settle);
 }
 
 /** On-screen rect of the first page and the pt -> px scale */
@@ -61,15 +95,32 @@ export async function annotationTypes(page: Page): Promise<number[]> {
 
 /** Exports from the save menu and returns the downloaded bytes */
 export async function saveVia(page: Page, label: string): Promise<Buffer> {
+  return (await saveDownload(page, label)).bytes;
+}
+
+/** Exports from the save menu; the downloaded bytes with the suggested file name */
+export async function saveDownload(page: Page, label: string) {
   await page.locator('.toolbar .save-btn').click();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
+  return downloadBytes(
+    page,
     // Match by the label (descriptions may mention other save names: save.incrementalBlocked)
-    page.locator('.menu-list button', { has: page.locator('.menu-label', { hasText: label }) }).click(),
-  ]);
+    () => page.locator('.menu-list button', { has: page.locator('.menu-label', { hasText: label }) }).click(),
+  );
+}
+
+/** Waits for the download that `trigger` starts */
+export async function downloadBytes(page: Page, trigger: () => Promise<unknown>) {
+  const [download] = await Promise.all([page.waitForEvent('download'), trigger()]);
   const path = await download.path();
   expect(path).not.toBeNull();
-  return readFileSync(path!);
+  return { bytes: readFileSync(path!), filename: download.suggestedFilename() };
+}
+
+/** Saves as a new file in content editing mode and opens the result in place of the document */
+export async function saveAndReopen(page: Page): Promise<Buffer> {
+  const bytes = await saveVia(page, '新ファイルで保存');
+  await reopenAfterContentEdit(page, bytes);
+  return bytes;
 }
 
 /** Every stream in a PDF with its dictionary (inflated when Flate-compressed). Direct /Length only, as PDFium writes */

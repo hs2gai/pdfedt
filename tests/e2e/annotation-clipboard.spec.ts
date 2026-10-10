@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openPdf, pageGeometry, addText, annotationTypes, saveVia, selectTool } from './helpers';
+import { openPdf, pageGeometry, addText, annotationTypes, saveVia, selectTool, reopen } from './helpers';
 
 // PdfAnnotationSubtype from @embedpdf/models
 const FREETEXT = 3;
@@ -44,7 +44,9 @@ const selectAll = (page: Page) =>
   });
 
 const selectedIds = (page: Page): Promise<string[]> =>
-  page.evaluate(() => window.__pdf.annotations.getSelectedAnnotations().map((x: { object: { id: string } }) => x.object.id));
+  page.evaluate(() =>
+    window.__pdf.annotations.getSelectedAnnotations().map((x: { object: { id: string } }) => x.object.id),
+  );
 
 /** Number of dark pixels in the rendered appearance of an annotation (0 = nothing drawn) */
 const inkedPixels = (page: Page, id: string) =>
@@ -106,9 +108,7 @@ test('テキスト注釈を Ctrl+C → Ctrl+V で複製し、貼るたびに少�
 
   // The copy survives saving and reopening
   const saved = await saveVia(page, '注釈付きで保存');
-  await page.locator('input[type=file]').first().setInputFiles({ name: 'saved.pdf', mimeType: 'application/pdf', buffer: saved });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(800);
+  await reopen(page, saved);
   expect((await summaries(page)).map((a) => a.text)).toEqual(['複製テスト', '複製テスト']);
 });
 
@@ -178,7 +178,10 @@ test('回転したスタンプも回転を保ったまま複製する', async ({
     a.updateAnnotation(0, o.id, {
       rotation: 90,
       unrotatedRect: r,
-      rect: { origin: { x: cx - r.size.height / 2, y: cy - r.size.width / 2 }, size: { width: r.size.height, height: r.size.width } },
+      rect: {
+        origin: { x: cx - r.size.height / 2, y: cy - r.size.width / 2 },
+        size: { width: r.size.height, height: r.size.width },
+      },
     });
     a.selectAnnotation(0, o.id);
   });
@@ -285,7 +288,10 @@ test('範囲を囲んだ後に注釈を選び直すと、Ctrl+C は範囲の画�
   const [square] = await summaries(page);
   const now = await pageGeometry(page);
   const r = square.rect;
-  await page.mouse.click(now.box.x + (r.origin.x + r.size.width / 2) * now.scale, now.box.y + r.origin.y * now.scale + 1);
+  await page.mouse.click(
+    now.box.x + (r.origin.x + r.size.width / 2) * now.scale,
+    now.box.y + r.origin.y * now.scale + 1,
+  );
   await expect.poll(() => selectedIds(page)).toHaveLength(1);
   await expect(page.locator('.region-select')).toHaveCount(0);
   await page.keyboard.press('Control+c');

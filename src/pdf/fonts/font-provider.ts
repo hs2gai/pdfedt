@@ -21,7 +21,7 @@ const FONT_FLAG_SERIF = 1 << 1;
 /** FX_Charset: CJK charsets. The built-in fonts have no glyphs for these, so always serve them from the bundled fonts */
 const CJK_CHARSETS = new Set([128 /* ShiftJIS */, 129 /* Hangul */, 134 /* GB2312 */, 136 /* Big5 */]);
 
-export const normalizeFontName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalizeFontName = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 export interface FontResolution {
   face: string;

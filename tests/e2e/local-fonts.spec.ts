@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
-import { openPdf, pageGeometry, pdfStreams, saveVia } from './helpers';
+import { openPdf, pageGeometry, pdfStreams, saveVia, reopenAfterContentEdit } from './helpers';
 
 /**
  * Local fonts (Local Font Access API) are used to render non-embedded fonts, for content-edit replacement, and as annotation typefaces.
@@ -12,7 +12,9 @@ const TTC = 'C:\\Windows\\Fonts\\msmincho.ttc';
 /** Stubs queryLocalFonts and turns on the "use local fonts" setting */
 async function enableFakeLocalFonts(page: Page) {
   const ttc = readFileSync(TTC);
-  await page.route('**/__local-fonts/msmincho.ttc', (route) => route.fulfill({ body: ttc, contentType: 'font/collection' }));
+  await page.route('**/__local-fonts/msmincho.ttc', (route) =>
+    route.fulfill({ body: ttc, contentType: 'font/collection' }),
+  );
   await page.addInitScript(() => {
     // @ts-expect-error test only
     delete window.showSaveFilePicker;
@@ -72,15 +74,7 @@ test('PC の MS 明朝（TTC）で非埋め込み文書を表示し、同じ書�
   await page.locator('.popover button', { hasText: '置換' }).click();
   await page.waitForTimeout(1000);
 
-  await page.locator('.toolbar .save-btn').click();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page
-      .locator('.menu-list button')
-      .filter({ has: page.locator('.menu-label', { hasText: '新ファイルで保存' }) })
-      .click(),
-  ]);
-  const bytes = readFileSync((await download.path())!);
+  const bytes = await saveVia(page, '新ファイルで保存');
 
   // The embedded FontFile2 is a small subset of MS-Mincho (the first face in the TTC, not PMincho)
   const [ttf] = fontFiles(bytes);
@@ -89,13 +83,7 @@ test('PC の MS 明朝（TTC）で非埋め込み文書を表示し、同じ書�
   expect(ttf.length).toBeLessThan(50_000);
 
   // After reopening, the page content contains the replaced text
-  await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
-  await page
-    .locator('input[type=file]')
-    .first()
-    .setInputFiles({ name: 'edited.pdf', mimeType: 'application/pdf', buffer: bytes });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(500);
+  await reopenAfterContentEdit(page, bytes);
   const text: string = await page.evaluate(async () => {
     const rt = window.__pdf.runtime;
     const doc = window.__pdf.docs.getActiveDocument();

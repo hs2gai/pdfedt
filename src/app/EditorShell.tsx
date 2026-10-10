@@ -1,44 +1,37 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDocumentManagerCapability, useActiveDocument } from '@embedpdf/plugin-document-manager/react';
 import { useAnnotationCapability } from '@embedpdf/plugin-annotation/react';
 import { useFormCapability } from '@embedpdf/plugin-form/react';
-import { useViewportCapability } from '@embedpdf/plugin-viewport/react';
 import { useScrollCapability } from '@embedpdf/plugin-scroll/react';
 import { useSelectionCapability } from '@embedpdf/plugin-selection/react';
-import { useRenderCapability } from '@embedpdf/plugin-render/react';
-import { useRegistry } from '@embedpdf/core/react';
 import type { PdfRuntime } from '../pdf/engine';
+import { isLockedBySignature } from '../pdf/inspector';
 import { PdfPages } from '../viewer/PdfPages';
-import { copySelection, regionStore, useRegionSelection } from '../viewer/RegionSelection';
+import { regionStore, useRegionSelection } from '../viewer/RegionSelection';
 import { ThumbnailSidebar } from '../viewer/ThumbnailSidebar';
 import { SearchBar } from '../viewer/SearchBar';
-import { printDocument } from '../viewer/print';
-import { useSelectionDebug } from '../viewer/useSelectionDebug';
 import { Toolbar } from '../annotations/Toolbar';
 import { TextJaTool } from '../annotations/text-ja/TextJaTool';
 import { StampTool } from '../annotations/stamps/StampTool';
-import { useDropZone } from './useDropZone';
-import { useOpenFromUrl } from './useOpenFromUrl';
-import { exportDocument, registerOpenedDocument, forgetDocument, rememberPassword } from '../pdf/export';
 import { configureAnnotationTools } from '../annotations/tools-setup';
-import { clearAnnotationClipboard, copyAnnotations, hasAnnotationClipboard, pasteAnnotations } from '../annotations/clipboard';
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
-import { DocumentBadges } from './DocumentBadges';
-import { useDocumentInfo } from './useDocumentInfo';
+import { applyTextMarkup, hasTextSelection, isMarkupTool, useMarkupSelectionRects } from '../annotations/text-markup';
 import { ContentEditMode } from '../content-edit/ContentEditMode';
 import { ContentEditGate } from '../content-edit/ContentEditGate';
 import { ContentEditLayer } from '../content-edit/ContentEditLayer';
-import { contentEditStore, useContentEditState } from '../content-edit/store';
-import { contentHistory } from '../content-edit/history';
-import { getRecentBytes, putRecent, sourceKeyOf, touchRecent, useRecentList, type RecentMeta } from './recent-store';
+import { useContentEditState } from '../content-edit/store';
+import { useDropZone } from './useDropZone';
+import { useDocumentOpener } from './useDocumentOpener';
+import { useClipboardActions } from './useClipboardActions';
+import { usePrint } from './usePrint';
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { DocumentBadges } from './DocumentBadges';
+import { useDocumentInfo } from './useDocumentInfo';
 import { useRecentSnapshot } from './useRecentSnapshot';
 import { usePageOperations } from './usePageOperations';
 import { useResetDocument } from './useResetDocument';
 import { formatSavedAt } from './RecentMenu';
-import { appSettings } from './settings';
 import { Brand } from './Brand';
-import { prepareDisplayFonts } from '../pdf/fonts/display-fonts';
-import { uuid } from '../shared/uuid';
+import { LoadingOverlay } from './LoadingOverlay';
 import { useT } from '../i18n';
 
 /** Tool ID. 'select' clears the annotation plugin's tool; 'textJa' is our own tool */
@@ -81,110 +74,23 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
     if (annotations) configureAnnotationTools(annotations);
   }, [annotations]);
 
-  // Development aid: expose plugin state to the browser console
-  const { provides: viewportCap } = useViewportCapability();
+  // Development aid: expose plugin state to the browser console (and to E2E)
   const { provides: scrollCap } = useScrollCapability();
-  const { registry } = useRegistry();
   useEffect(() => {
     // Exposed only in development and in the E2E build (VITE_E2E=1)
     if (import.meta.env.DEV || import.meta.env.VITE_E2E === '1') {
-      (window as unknown as { __pdf: unknown }).__pdf = {
-        runtime,
-        registry,
-        viewportCap,
-        scrollCap,
-        docs,
-        annotations,
-        // For spikes: send the saved result to Vite's spike-sink (_spike-out/)
-        saveTo: async (kind: 'incremental' | 'full' | 'flatten', name: string) => {
-          if (!activeDocumentId) return 'no document';
-          await annotations?.forDocument(activeDocumentId).commit().toPromise();
-          const bytes = exportDocument(runtime, activeDocumentId, kind);
-          const r = await fetch(`/__spike/save?name=${encodeURIComponent(name)}`, {
-            method: 'POST',
-            body: bytes as BodyInit,
-          });
-          return `${name}: ${bytes.byteLength} bytes (${r.status})`;
-        },
-      };
+      (window as unknown as { __pdf: unknown }).__pdf = { runtime, scrollCap, docs, annotations };
     }
-  }, [runtime, registry, viewportCap, scrollCap, docs, annotations, activeDocumentId]);
+  }, [runtime, scrollCap, docs, annotations]);
 
-  // Recent files. Holds the entry for the open document and writes it back on every change
-  const recent = useRecentList();
-  const [recentEntry, setRecentEntry] = useState<RecentMeta | null>(null);
-
-  /** `password`: open password already known (reopening an encrypted document after page operations) */
-  const openBytes = async (bytes: Uint8Array, entry: RecentMeta, password?: string) => {
-    if (!docs) return;
-    // Prepare display fonts for non-embedded fonts first (PDFium requests them synchronously while rendering, so this must happen before opening)
-    await prepareDisplayFonts(runtime.pdfium, runtime.fonts, bytes, appSettings.get().localFonts);
-    setContentEdit('off');
-    contentHistory.clear();
-    contentEditStore.reset();
-    if (entry.contentEdited) contentEditStore.set({ edited: true });
-    if (activeDocumentId) {
-      forgetDocument(activeDocumentId);
-      docs.closeDocument(activeDocumentId);
-    }
-    setTool('select');
-    setRecentEntry(entry);
-    docs.openDocumentBuffer({ buffer: bytes.buffer as ArrayBuffer, name: entry.name, password }).wait(
-      ({ documentId }) => {
-        buffers.current.set(documentId, bytes);
-        if (password) rememberPassword(documentId, password);
-      },
-      () => {},
-    );
-  };
-  const openFile = async (file: File, sourceKey = sourceKeyOf(file)) => {
-    if (!docs) return;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    // Reopening the same file reuses its entry in the list (the in-progress state is replaced by the opened content)
-    const entry: RecentMeta = {
-      id: recent.find((m) => m.sourceKey === sourceKey)?.id ?? uuid(),
-      name: file.name,
-      sourceKey,
-      size: bytes.byteLength,
-      savedAt: Date.now(),
-      contentEdited: false,
-    };
-    await openBytes(bytes, entry);
-    await putRecent(entry, bytes, bytes);
-  };
-  const openRecent = async (meta: RecentMeta) => {
-    const bytes = await getRecentBytes(meta.id);
-    if (!bytes) {
-      setStatus(t('app.recentMissing'));
-      return;
-    }
-    await openBytes(bytes, meta);
-    await touchRecent(meta.id);
-  };
-  // Extension: fetch and open the PDF opened in the browser (#src=<URL>)
-  const openFileRef = useRef(openFile);
-  openFileRef.current = openFile;
-  const openingFromUrl = useOpenFromUrl(
-    !!docs,
-    useCallback((file: File, sourceKey: string) => openFileRef.current(file, sourceKey), []),
-    setStatus,
-  );
-  // Auto-open the last session at startup (when the setting is on; only once, when the list is first loaded)
-  const autoResumed = useRef(false);
-  useEffect(() => {
-    if (
-      autoResumed.current ||
-      openingFromUrl ||
-      !docs ||
-      activeDocumentId ||
-      !recent[0] ||
-      !appSettings.get().autoResume
-    )
-      return;
-    autoResumed.current = true;
-    void openRecent(recent[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recent, docs]);
+  const { recent, recentEntry, opening, openBytes, openFile, openRecent } = useDocumentOpener({
+    runtime,
+    onOpening: () => {
+      setContentEdit('off');
+      setTool('select');
+    },
+    onStatus: setStatus,
+  });
   useRecentSnapshot({
     runtime,
     documentId: activeDocumentId,
@@ -194,17 +100,6 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
     entry: recentEntry,
     onStatus: setStatus,
   });
-
-  // Bytes at open time. When loading completes (including after a password retry),
-  // record them as the baseline before any change (used to slim down incremental saves)
-  const buffers = useRef(new Map<string, Uint8Array>());
-  useEffect(() => {
-    if (!activeDocumentId || activeDocument?.status !== 'loaded') return;
-    const original = buffers.current.get(activeDocumentId);
-    if (!original) return;
-    buffers.current.delete(activeDocumentId);
-    registerOpenedDocument(runtime, activeDocumentId, original);
-  }, [runtime, activeDocumentId, activeDocument?.status]);
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) void openFile(f);
@@ -212,8 +107,18 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
   };
   const dropProps = useDropZone(openFile);
 
+  const { provides: selectionCap } = useSelectionCapability();
+  useMarkupSelectionRects(selectionCap, activeDocumentId, loaded);
   // Tool switching: the annotation plugin's tool or our own tool
   const selectTool = (next: ToolId) => {
+    // A markup tool with text already selected marks that text and keeps the current tool (selection first, as in Acrobat);
+    // without a selection it becomes the active tool, and text traced with it is marked
+    if (isMarkupTool(next) && annotations && selectionCap && activeDocumentId) {
+      if (hasTextSelection(selectionCap, activeDocumentId)) {
+        applyTextMarkup(annotations, selectionCap, activeDocumentId, next);
+        return;
+      }
+    }
     setTool(next);
     // Our own tools (select / textJa / callout / stamp) clear the plugin tool. 'image' is the plugin's image stamp
     const pluginTool =
@@ -226,69 +131,15 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
   };
   // Even in content editing mode, annotations can be created / edited as usual while a tool other than "Content" is selected
   const contentSelecting = contentEdit === 'on' && tool === 'content';
-  // Text selection or a region dragged on empty space with the select tool → Ctrl+C
-  const { provides: selectionCap } = useSelectionCapability();
-  const { provides: renderCap } = useRenderCapability();
-  useSelectionDebug(selectionCap);
+  // A region dragged on empty space with the select tool is kept for Ctrl+C
   useRegionSelection(activeDocumentId, tool === 'select');
-  const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-  const copy = () => {
-    // Text or a kept region first (a marquee also selects the annotations it touches; the region image includes them)
-    const job = activeDocumentId && selectionCap && renderCap && copySelection(selectionCap, renderCap, activeDocumentId);
-    if (!job) {
-      // Otherwise the selected annotations (Ctrl+V pastes them back as copies)
-      const doc = activeDocument?.document;
-      if (!activeDocumentId || !annotations || !doc || contentSelecting) return false;
-      const scope = annotations.forDocument(activeDocumentId);
-      const count = copyAnnotations(runtime, scope, doc, scope.getSelectedAnnotations());
-      if (count) setStatus(t('copy.annotations', { count }));
-      return count > 0;
-    }
-    // Copying text / an image replaces what Ctrl+V should paste
-    clearAnnotationClipboard();
-    job.then(
-      (kind) => setStatus(t(kind === 'text' ? 'copy.text' : 'copy.image')),
-      (e: unknown) => setStatus(t('copy.failed', { message: errorText(e) })),
-    );
-    return true;
-  };
+  const { copy, paste } = useClipboardActions({ runtime, info, contentSelecting, onStatus: setStatus });
   // Text search (Ctrl+F). focusKey moves the focus back to an already open bar
   const [search, setSearch] = useState<{ open: boolean; focusKey: number }>({ open: false, focusKey: 0 });
   const openSearch = () => setSearch((s) => ({ open: true, focusKey: s.focusKey + 1 }));
   const closeSearch = () => setSearch((s) => ({ ...s, open: false }));
-  // Printing renders every page first; one run at a time
-  const [printing, setPrinting] = useState(false);
   const canPrint = loaded && (info?.canPrint ?? true);
-  const print = async () => {
-    const doc = activeDocument?.document;
-    if (!activeDocumentId || !doc || !renderCap || printing) return;
-    if (!canPrint) return setStatus(t('toolbar.print.blocked'));
-    setPrinting(true);
-    try {
-      // Flush annotation changes so the page images include them
-      await annotations?.forDocument(activeDocumentId).commit().toPromise();
-      await printDocument(renderCap, doc, (done, total) => setStatus(t('print.preparing', { done, total })));
-      setStatus('');
-    } catch (e) {
-      setStatus(t('print.failed', { message: errorText(e) }));
-    } finally {
-      setPrinting(false);
-    }
-  };
-  const paste = () => {
-    const doc = activeDocument?.document;
-    if (!activeDocumentId || !annotations || !doc || !scrollCap || contentSelecting || !hasAnnotationClipboard()) return false;
-    if (info && !info.canAnnotate) {
-      setStatus(t('toolbar.annotateBlocked'));
-      return true;
-    }
-    const pageIndex = scrollCap.forDocument(activeDocumentId).getCurrentPage() - 1;
-    pasteAnnotations(annotations.forDocument(activeDocumentId), doc, pageIndex).then(
-      (count) => count && setStatus(t('paste.annotations', { count })),
-      (e: unknown) => setStatus(t('paste.failed', { message: errorText(e) })),
-    );
-    return true;
-  };
+  const { printing, print } = usePrint({ canPrint, onStatus: setStatus });
   useKeyboardShortcuts({
     documentId: activeDocumentId,
     contentEdit: contentSelecting,
@@ -312,8 +163,13 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
     reopen: openBytes,
     onStatus: setStatus,
   });
-  const resetDoc = useResetDocument({ documentId: activeDocumentId, entry: recentEntry, reopen: openBytes, onStatus: setStatus });
-  const pagesEditable = loaded && contentEdit !== 'on' && (info?.canModify ?? true) && !(info && info.signatures > 0 && (info.docMdp === 1 || info.docMdp === 2));
+  const resetDoc = useResetDocument({
+    documentId: activeDocumentId,
+    entry: recentEntry,
+    reopen: openBytes,
+    onStatus: setStatus,
+  });
+  const pagesEditable = loaded && contentEdit !== 'on' && (info?.canModify ?? true) && !isLockedBySignature(info);
 
   return (
     <div className="app" {...dropProps}>
@@ -353,7 +209,12 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
         onReset={resetDoc.request}
       />
       {search.open && activeDocumentId && loaded && (
-        <SearchBar key={activeDocumentId} documentId={activeDocumentId} focusKey={search.focusKey} onClose={closeSearch} />
+        <SearchBar
+          key={activeDocumentId}
+          documentId={activeDocumentId}
+          focusKey={search.focusKey}
+          onClose={closeSearch}
+        />
       )}
       {loaded && <DocumentBadges info={info} />}
       {contentEdit === 'gate' && (
@@ -380,6 +241,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
         />
       )}
       <div className="viewer">
+        {opening && <LoadingOverlay opening={opening} />}
         {activeDocumentId ? (
           <>
             {showThumbs && (
@@ -394,6 +256,7 @@ export function EditorShell({ runtime }: { runtime: PdfRuntime }) {
             <PdfPages
               documentId={activeDocumentId}
               annotationsInert={contentSelecting}
+              canAnnotate={info?.canAnnotate ?? true}
               pageOverlay={
                 contentSelecting
                   ? (pageIndex, scale) => <ContentEditLayer pageIndex={pageIndex} scale={scale} />

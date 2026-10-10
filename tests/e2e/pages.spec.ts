@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openPdf, sample, saveVia, selectTool } from './helpers';
+import { openPdf, sample, saveVia, selectTool, waitUntilOpened } from './helpers';
 
 /**
  * Returns the text of each page in order, read straight from PDFium's text page
@@ -35,7 +35,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   await page.keyboard.press('Delete');
   await expect(page.locator('.modal')).toContainText('ページ2を削除しますか');
   await page.locator('.modal button', { hasText: '削除する' }).click();
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await expect(page.locator('.thumb')).toHaveCount(2);
   expect(await pageTexts(page)).toEqual(['ページA', 'ページC']);
   await expect(page.locator('.status-bar')).toContainText('ページ2を削除しました');
@@ -48,7 +48,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
   await page.mouse.move(box.x + box.width / 2, box.y + 10, { steps: 6 });
   await page.mouse.move(box.x + box.width / 2, box.y + 8, { steps: 2 });
   await page.mouse.up();
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   expect(await pageTexts(page)).toEqual(['ページC', 'ページA']);
 
   // Dropping a PDF file after the last thumbnail (empty area of the list) appends its pages
@@ -64,7 +64,7 @@ test('サムネイルからページを削除・並べ替え・PDF の追加が�
     pane.dispatchEvent(new DragEvent('dragover', init));
     pane.dispatchEvent(new DragEvent('drop', init));
   }, extra);
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await expect(page.locator('.thumb')).toHaveCount(3);
   const texts = await pageTexts(page);
   expect(texts.slice(0, 2)).toEqual(['ページC', 'ページA']);
@@ -90,7 +90,7 @@ test('ツールバーで表示中のページを回転でき、保存した PDF 
   await page.waitForTimeout(300);
   await page.locator('.toolbar .icon-btn[aria-label="右に回転"]').click();
   await expect(page.locator('.status-bar')).toContainText('ページ2を右に回転しました');
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await expect.poll(rotations).toEqual([0, 1, 0]);
   const box = (await page.locator('.page').nth(1).boundingBox())!;
   expect(box.width).toBeGreaterThan(box.height);

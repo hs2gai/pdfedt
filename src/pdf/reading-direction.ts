@@ -36,6 +36,9 @@ export function neutralPreferencesPdf(): Uint8Array {
   return new TextEncoder().encode(pdf);
 }
 
+/** Whether the document is bound right to left (it is neutralized when registered after opening) */
+export const isRightToLeft = (m: WrappedPdfiumModule, docPtr: number) => readDirection(m, docPtr) === 'R2L';
+
 function readDirection(m: WrappedPdfiumModule, docPtr: number): string {
   const u = wasmUtils(m);
   const size = 16;
@@ -50,15 +53,12 @@ function readDirection(m: WrappedPdfiumModule, docPtr: number): string {
 }
 
 function copyNeutral(m: WrappedPdfiumModule, docPtr: number) {
-  wasmUtils(m).withBytes(neutralPreferencesPdf(), (ptr, len) => {
-    const source = m.FPDF_LoadMemDocument(ptr, len, '');
-    if (!source) throw new Error('FPDF_LoadMemDocument failed (neutral preferences)');
-    try {
-      m.FPDF_CopyViewerPreferences(docPtr, source);
-    } finally {
-      m.FPDF_CloseDocument(source);
-    }
-  });
+  wasmUtils(m).withMemDocument(
+    neutralPreferencesPdf(),
+    '',
+    'FPDF_LoadMemDocument failed (neutral preferences)',
+    (source) => m.FPDF_CopyViewerPreferences(docPtr, source),
+  );
 }
 
 /** Call right after opening (after the incremental baseline is taken, which must see the original catalog) */

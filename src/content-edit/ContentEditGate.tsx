@@ -1,4 +1,4 @@
-import type { DocumentInfo } from '../pdf/inspector';
+import { isLockedBySignature, type DocumentInfo } from '../pdf/inspector';
 import { useT } from '../i18n';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
  * Documents whose signature forbids changes (DocMDP 1–2) cannot enter.
  */
 export function ContentEditGate({ info, onConfirm, onCancel }: Props) {
-  const blocked = !!info && info.signatures > 0 && (info.docMdp === 1 || info.docMdp === 2);
+  const blocked = isLockedBySignature(info);
   const t = useT();
   return (
     <div className="modal-backdrop" onClick={onCancel}>

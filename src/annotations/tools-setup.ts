@@ -2,11 +2,13 @@ import { PdfAnnotationSubtype } from '@embedpdf/models';
 import type { AnnotationCapability } from '@embedpdf/plugin-annotation';
 import { readTextAnnotation } from './text-ja/text-annotation';
 import { readStampAnnotation } from './stamps/stamp-annotation';
+import { STYLED_TOOL_IDS, stylePatch } from './annot-style';
+import { appSettings } from '../app/settings';
 
 import { LockModeType, type LockMode } from '@embedpdf/plugin-annotation';
 
-export const TEXT_JA_TOOL_ID = 'textJa';
-export const STAMP_JA_TOOL_ID = 'stampJa';
+const TEXT_JA_TOOL_ID = 'textJa';
+const STAMP_JA_TOOL_ID = 'stampJa';
 
 /**
  * Default lock: form widgets are not selectable / movable as annotations;
@@ -27,6 +29,11 @@ export function configureAnnotationTools(annotations: AnnotationCapability) {
     annotations.setToolDefaults(id, { strokeWidth: 1.5 });
   }
   annotations.setToolDefaults('ink', { strokeWidth: 2 });
+  // Colors / widths last picked in the selection menu
+  const saved = appSettings.get().annotStyles;
+  for (const id of STYLED_TOOL_IDS) {
+    if (saved[id]) annotations.setToolDefaults(id, stylePatch(id, saved[id]));
+  }
 
   if (!annotations.getTool(STAMP_JA_TOOL_ID)) {
     annotations.addTool({

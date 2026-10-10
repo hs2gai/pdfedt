@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openPdf, pageGeometry, addText, annotationTypes } from './helpers';
+import { openPdf, pageGeometry, addText, annotationTypes, waitUntilOpened } from './helpers';
 
 const resetItem = (page: Page) =>
   page.locator('.menu-list button', { has: page.locator('.menu-label', { hasText: '最初に開いた状態に戻す' }) });
@@ -34,7 +34,7 @@ test('保存メニューの「最初に開いた状態に戻す」で、注釈�
   await page.locator('.modal button', { hasText: '元に戻す' }).click();
   await expect(page.locator('.status-bar')).toContainText('最初に開いた状態に戻しました');
   await expect(page.locator('.thumb')).toHaveCount(3);
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   expect(await annotationTypes(page)).toEqual([]);
   // Page operations made the document "content edited"; reverting allows the incremental save again
   await page.locator('.toolbar .save-btn').click();
@@ -45,7 +45,7 @@ test('保存メニューの「最初に開いた状態に戻す」で、注釈�
   await page.waitForTimeout(1500);
   const dialog = page.waitForEvent('dialog');
   await Promise.all([page.reload(), dialog.then((d) => d.accept())]);
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(500);
   await expect(page.locator('.thumb')).toHaveCount(3);
   expect(await annotationTypes(page)).toEqual([]);
@@ -56,7 +56,7 @@ test('保存メニューの「最初に開いた状態に戻す」で、注釈�
   await askReset(page);
   await page.locator('.modal button', { hasText: '元に戻す' }).click();
   await expect(page.locator('.status-bar')).toContainText('最初に開いた状態に戻しました');
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(300);
   expect(await annotationTypes(page)).toEqual([]);
 });

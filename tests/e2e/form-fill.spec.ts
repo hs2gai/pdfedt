@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
-import { openPdf, saveVia } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { openPdf, saveVia, reopen } from './helpers';
 
 type FieldSummary = { name: string; value: string };
-const fieldValues = (page: import('@playwright/test').Page): Promise<FieldSummary[]> =>
+const fieldValues = (page: Page): Promise<FieldSummary[]> =>
   page.evaluate(() =>
     window.__pdf.annotations
       .getAnnotations()
@@ -34,8 +34,6 @@ test('フォームに入力して保存できる', async ({ page }) => {
 
   // The value remains after saving and reopening
   const saved = await saveVia(page, '注釈付きで保存');
-  await page.locator('input[type=file]').first().setInputFiles({ name: 'filled.pdf', mimeType: 'application/pdf', buffer: saved });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(800);
+  await reopen(page, saved);
   expect((await fieldValues(page)).find((f) => f.name === name)?.value).toBe('山田　太郎');
 });

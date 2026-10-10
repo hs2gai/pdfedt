@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useT } from '../i18n';
 
-export type ProtectKind = 'full' | 'flatten';
+type ProtectKind = 'full' | 'flatten';
 
 interface Props {
   onSubmit: (kind: ProtectKind, password: string) => void;

@@ -1,16 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { test, expect, type Page } from '@playwright/test';
 import { openPdf, pageGeometry, saveVia } from './helpers';
 
 const STAMP = 13;
 
-async function placeStamp(
-  page: import('@playwright/test').Page,
-  selector: string,
-  x: number,
-  y: number,
-  fill: Record<string, string> = {},
-) {
+async function placeStamp(page: Page, selector: string, x: number, y: number, fill: Record<string, string> = {}) {
   await page.locator('.toolbar button', { hasText: 'スタンプ' }).click();
   await page.waitForSelector('.stamp-panel');
   await page.locator(selector).first().click();
@@ -31,7 +24,10 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
 
   // Presets: box (top line, date, name) / date seal (department, short date, name) / round vertical (name)
   await placeStamp(page, '.stamp-preset[title^="四角"]', box.x + 900, box.y + 300, { 下段: '山田' });
-  await placeStamp(page, '.stamp-preset[title^="データ印"]', box.x + 900, box.y + 500, { 上段: '総務部', 下段: '山田' });
+  await placeStamp(page, '.stamp-preset[title^="データ印"]', box.x + 900, box.y + 500, {
+    上段: '総務部',
+    下段: '山田',
+  });
   await placeStamp(page, '.stamp-preset[title^="丸（縦書き）"]', box.x + 1100, box.y + 500, { 文字: '山田太郎' });
 
   type Summary = {
@@ -75,7 +71,9 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
   await page.mouse.click(box.x + 600, box.y + 300);
   await page.waitForTimeout(900);
   const heights: number[] = await page.evaluate(() =>
-    window.__pdf.annotations.getAnnotations().map((a: { object: { rect: { size: { height: number } } } }) => a.object.rect.size.height),
+    window.__pdf.annotations
+      .getAnnotations()
+      .map((a: { object: { rect: { size: { height: number } } } }) => a.object.rect.size.height),
   );
   expect(heights[3]).toBeLessThan(heights[0] - 10); // 38pt → 26pt
 
@@ -89,18 +87,69 @@ test('プリセットのスタンプを押して保存できる', async ({ page 
   });
   await page.waitForTimeout(800);
 
-  const saved = readFileSync(await saveAndPath(page)).toString('latin1');
+  const saved = (await saveVia(page, '新ファイルで保存')).toString('latin1');
   expect((saved.match(/\/Subtype\s*\/Stamp/g) ?? []).length).toBe(4);
   expect(saved).toContain('BIZUDPGothic');
   // The round (vertical) stamp embeds a seal typeface (brush style)
   expect(saved).toContain('YujiSyuku');
 });
 
-async function saveAndPath(page: import('@playwright/test').Page): Promise<string> {
-  const bytes = await saveVia(page, '新ファイルで保存');
-  const path = '_spike-out/e2e_stamps.pdf';
-  const { writeFileSync, mkdirSync } = await import('node:fs');
-  mkdirSync('_spike-out', { recursive: true });
-  writeFileSync(path, bytes);
-  return path;
-}
+test('押したスタンプを「編集」で書き直すと、押した日付・中心・倍率を保ったまま作り直される', async ({ page }) => {
+  await openPdf(page, 'sample-ja-form.pdf');
+  const { box } = await pageGeometry(page);
+  await placeStamp(page, '.stamp-preset[title^="四角"]', box.x + 900, box.y + 300, { 下段: '山田' });
+
+  type Rect = { origin: { x: number; y: number }; size: { width: number; height: number } };
+  type Obj = { id: string; rect: Rect; custom: { pdfa: { values: Record<string, string>; color: string } } };
+  const objects = (): Promise<Obj[]> =>
+    page.evaluate(() => window.__pdf.annotations.getAnnotations().map((a: { object: Obj }) => a.object));
+
+  // Emulate a stamp pressed on an earlier day and then enlarged 2x around its center
+  const before = (await objects())[0];
+  const center = {
+    x: before.rect.origin.x + before.rect.size.width / 2,
+    y: before.rect.origin.y + before.rect.size.height / 2,
+  };
+  await page.evaluate(
+    ({ o, c }) => {
+      const a = window.__pdf.annotations;
+      const { width, height } = o.rect.size;
+      a.updateAnnotation(0, o.id, {
+        rect: { origin: { x: c.x - width, y: c.y - height }, size: { width: width * 2, height: height * 2 } },
+        custom: { pdfa: { ...o.custom.pdfa, values: { ...o.custom.pdfa.values, 日付: '令和7年1月1日' } } },
+      });
+      a.selectAnnotation(0, o.id);
+    },
+    { o: before, c: center },
+  );
+
+  // Cancel leaves the stamp as it is
+  await page.locator('.annot-menu button', { hasText: '編集' }).click();
+  await expect(page.locator('.stamp-panel .stamp-edit-preview')).toBeVisible();
+  await expect(page.locator('.stamp-panel .stamp-grid')).toHaveCount(0);
+  await page.locator('.stamp-panel button', { hasText: 'キャンセル' }).click();
+  await expect(page.locator('.stamp-panel')).toHaveCount(0);
+  expect((await objects()).map((o) => o.id)).toEqual([before.id]);
+
+  await page.evaluate((id) => window.__pdf.annotations.selectAnnotation(0, id), before.id);
+  await page.locator('.annot-menu button', { hasText: '編集' }).click();
+  // The date is an editable field holding the stamped value, not today's date
+  await expect(page.locator('.stamp-fields label', { hasText: '日付' }).locator('input')).toHaveValue('令和7年1月1日');
+  await expect(page.locator('.stamp-fields label', { hasText: '日付' }).locator('select')).toHaveCount(0);
+  await page.locator('.stamp-fields label', { hasText: '下段' }).locator('input').fill('佐藤');
+  await page.locator('.stamp-fields .swatch[title="青"]').click();
+  await page.locator('.stamp-panel button', { hasText: '更新' }).click();
+  await page.waitForTimeout(900);
+  await expect(page.locator('.stamp-panel')).toHaveCount(0);
+
+  const after = await objects();
+  expect(after).toHaveLength(1);
+  expect(after[0].id).not.toBe(before.id);
+  expect(after[0].custom.pdfa.values).toMatchObject({ 上段: '承認', 日付: '令和7年1月1日', 下段: '佐藤' });
+  expect(after[0].custom.pdfa.color).toBe('blue');
+  const r = after[0].rect;
+  expect(r.origin.x + r.size.width / 2).toBeCloseTo(center.x, 1);
+  expect(r.origin.y + r.size.height / 2).toBeCloseTo(center.y, 1);
+  expect(r.size.width).toBeCloseTo(before.rect.size.width * 2, 1);
+  expect(r.size.height).toBeCloseTo(before.rect.size.height * 2, 1);
+});

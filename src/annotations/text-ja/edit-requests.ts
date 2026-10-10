@@ -1,8 +1,9 @@
 import type { TextEditorRequest } from './TextEditorPopover';
+import { channel } from '../../shared/channel';
 
 /**
  * Bridge from the "Edit button in the selection menu" to the "text tool popover".
- * They are far apart in the React tree, so a small pub/sub connects them.
+ * They are far apart in the React tree, so a small channel connects them.
  */
 export interface EditTextRequest extends TextEditorRequest {
   /** Existing annotation being edited. Deleted and recreated on confirm */
@@ -13,14 +14,6 @@ export interface EditTextRequest extends TextEditorRequest {
   retarget?: boolean;
 }
 
-type Listener = (req: EditTextRequest) => void;
-const listeners = new Set<Listener>();
-
-export function requestTextEdit(req: EditTextRequest) {
-  listeners.forEach((l) => l(req));
-}
-
-export function onTextEditRequest(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+const textEdits = channel<EditTextRequest>();
+export const requestTextEdit = textEdits.emit;
+export const onTextEditRequest = textEdits.on;

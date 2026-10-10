@@ -4,7 +4,12 @@ import { saveDocument } from './save';
 import { flattenCopy } from './flatten';
 import { encryptCopy } from './encrypt';
 import { IncrementalSaver } from './incremental';
-import { forgetReadingDirection, neutralizeReadingDirection, withOriginalReadingDirection } from './reading-direction';
+import {
+  forgetReadingDirection,
+  isRightToLeft,
+  neutralizeReadingDirection,
+  withOriginalReadingDirection,
+} from './reading-direction';
 
 export type ExportKind = 'incremental' | 'full' | 'flatten';
 
@@ -12,6 +17,13 @@ export type ExportKind = 'incremental' | 'full' | 'flatten';
 const savers = new Map<string, IncrementalSaver>();
 /** Open password per document (memory only, never stored). Needed to reopen encrypted copies */
 const passwords = new Map<string, string>();
+
+/**
+ * Whether registerOpenedDocument must run before the pages are drawn: a right-to-left document is neutralized there,
+ * and the viewer has to see the neutral direction from the start. Others may register after the first page is shown
+ */
+export const mustRegisterBeforeRendering = (runtime: PdfRuntime, documentId: string) =>
+  isRightToLeft(runtime.pdfium, getDocPtr(runtime.native, documentId));
 
 /** Call right after opening the document to record the original bytes and the baseline increment */
 export function registerOpenedDocument(runtime: PdfRuntime, documentId: string, original: Uint8Array) {

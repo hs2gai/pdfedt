@@ -74,6 +74,22 @@ a.brand:hover .brand-name { color: var(--accent); }
 .empty { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #444; padding: 0 24px; box-sizing: border-box; text-align: center; }
 .empty p { max-width: 560px; margin: 8px 0; }
 .empty .muted { color: #888; font-size: 13px; }
+/* Loading overlay: a CSS transform animation keeps turning while PDFium blocks the main thread */
+.loading-overlay { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(244,245,247,.82); cursor: progress; }
+.loading-overlay.settled { background: rgba(244,245,247,.35); }
+.loading-card { width: min(360px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px 20px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.12); text-align: center; }
+.loading-spinner { width: 36px; height: 36px; margin-bottom: 6px; border: 4px solid #dbe4f3; border-top-color: #2563eb; border-radius: 50%; animation: loading-spin .8s linear infinite; will-change: transform; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+.loading-name { max-width: 100%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loading-size { color: #888; font-size: 12px; }
+.loading-phase { margin-top: 6px; font-size: 13px; }
+.loading-step { margin-left: 8px; color: #888; font-size: 12px; }
+.loading-steps { display: flex; gap: 4px; width: 100%; }
+.loading-steps span { flex: 1; height: 4px; border-radius: 2px; background: #e5e7eb; }
+.loading-steps .done { background: #2563eb; }
+.loading-steps .current { background: #93b4f5; }
+.loading-note { margin: 8px 0 0; color: #666; font-size: 12px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation-duration: 2.4s; } }
 
 .menu { position: relative; }
 .menu-list { position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 20; background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); min-width: 300px; display: flex; flex-direction: column; padding: 4px; }
@@ -88,6 +104,8 @@ a.brand:hover .brand-name { color: var(--accent); }
 .settings-row > span { display: flex; flex-direction: column; gap: 2px; }
 .settings-row input { margin-top: 3px; }
 .settings-version { padding: 6px 10px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+.settings-version a { color: inherit; }
+.settings-version a:hover { color: #2563eb; }
 .settings-select { align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 .settings-select select { font: inherit; padding: 2px 6px; }
 
@@ -291,3 +309,15 @@ button, .icon-btn { touch-action: manipulation; }
   .menu-list { min-width: 0; max-width: calc(100vw - 24px); }
   .popover { max-width: calc(100vw - 24px); }
 }
+.color-select { display: inline-flex; }
+.color-select-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; }
+.color-select-btn .swatch { width: 16px; height: 16px; border: 1px solid rgba(0,0,0,.25); }
+.color-select-btn .caret { font-size: 10px; color: #666; }
+.color-grid { position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 40; display: grid; grid-template-columns: repeat(5, 24px); gap: 6px; padding: 8px; background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+.color-grid .swatch { width: 24px; height: 24px; border: 1px solid rgba(0,0,0,.2); }
+.color-grid .swatch.active { border: 2px solid var(--accent); }
+.annot-menu .width-select { font-size: 12px; padding: 2px 4px; }
+.annot-menu .color-select-btn { padding: 2px 6px; }
+.stamp-edit-preview { align-self: center; }
+.stamp-edit-actions { display: flex; gap: 6px; }
+.icon-btn.primary { color: #fff; }

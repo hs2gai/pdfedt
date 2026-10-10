@@ -34,8 +34,6 @@ export function loadLocalFontCatalog(): Promise<LocalFontData[]> {
   return loading;
 }
 
-export const localFontCatalog = (): LocalFontData[] => catalog;
-
 /** If a fetch is in progress, wait for it and return the list (used for preloading before opening a document). Failure counts as empty */
 export const localFontCatalogReady = (): Promise<LocalFontData[]> => (loading ?? Promise.resolve(catalog)).catch(() => []);
 

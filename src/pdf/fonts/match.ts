@@ -24,7 +24,7 @@ const MINCHO_HINTS = [
   '明朝',
 ];
 /** Gothic (sans-serif) fonts whose names contain "serif" */
-const SANS_HINTS = ['sans', 'gothic', 'gothic', 'ゴシック', 'yahei', 'meiryo', 'kaku', 'maru', 'mono'];
+const SANS_HINTS = ['sans', 'gothic', 'ゴシック', 'yahei', 'meiryo', 'kaku', 'maru', 'mono'];
 
 /**
  * Guesses the bundled typeface to use as a replacement from the original font name.

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openPdf, pageGeometry, saveVia } from './helpers';
+import { openPdf, pageGeometry, saveAndReopen } from './helpers';
 
 // sample-form-xobject.pdf: both pages show page 1 of sample-vertical.pdf through two nested Form XObjects,
 // and the two pages share the inner form. Coordinates as in sample-vertical.pdf (top-left origin, pt):
@@ -43,19 +43,6 @@ const pageTexts = (page: Page): Promise<string[]> =>
     }
     return out;
   });
-
-/** Saves as a new file and opens the result in place of the document */
-async function saveAndReopen(page: Page): Promise<Buffer> {
-  const bytes = await saveVia(page, '新ファイルで保存');
-  await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
-  await page
-    .locator('input[type=file]')
-    .first()
-    .setInputFiles({ name: 'edited.pdf', mimeType: 'application/pdf', buffer: bytes });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(500);
-  return bytes;
-}
 
 test('Form の中の横書きの文字を置換でき、Form を共有する他のページはそのまま', async ({ page }) => {
   await startContentEdit(page);

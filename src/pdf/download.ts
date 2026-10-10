@@ -19,7 +19,7 @@ export interface FileType {
   mime: string;
   extension: string;
 }
-export const PDF_TYPE: FileType = { description: 'PDF', mime: 'application/pdf', extension: '.pdf' };
+const PDF_TYPE: FileType = { description: 'PDF', mime: 'application/pdf', extension: '.pdf' };
 export const JSON_TYPE: FileType = { description: 'JSON', mime: 'application/json', extension: '.json' };
 
 export async function pickSaveTarget(suggestedName: string, type: FileType = PDF_TYPE): Promise<SaveTarget> {

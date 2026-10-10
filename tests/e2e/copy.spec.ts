@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openPdf, pageGeometry, selectTool } from './helpers';
+import { openPdf, pageGeometry, selectTool, dragPt } from './helpers';
 
 // sample-scaled-tf.pdf: line 1 "この行は、文字の箱の高さを確かめるための見本です。" at 12pt, x=60, baseline y=100 (top-left origin)
 
@@ -8,15 +8,6 @@ test.beforeEach(async ({ context }) => {
 });
 
 /** Drags on the first page between two points given in pt */
-async function dragPt(page: Page, from: [number, number], to: [number, number]) {
-  const { box, scale } = await pageGeometry(page);
-  await page.mouse.move(box.x + from[0] * scale, box.y + from[1] * scale);
-  await page.mouse.down();
-  await page.mouse.move(box.x + to[0] * scale, box.y + to[1] * scale, { steps: 8 });
-  await page.mouse.up();
-  await page.waitForTimeout(300);
-}
-
 /** Size of the PNG on the clipboard and the number of yellowish (highlight) pixels */
 const readClipboardImage = (page: Page) =>
   page.evaluate(async () => {

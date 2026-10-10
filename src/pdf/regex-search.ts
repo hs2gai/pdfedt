@@ -12,7 +12,7 @@ import type { PdfiumNative } from '@embedpdf/engines/pdfium';
 export const REGEX_FLAG = (1 << 16) as MatchFlag;
 
 /** Hits kept per page; a pattern like "." would otherwise produce one hit per character */
-export const MAX_MATCHES_PER_PAGE = 1000;
+const MAX_MATCHES_PER_PAGE = 1000;
 
 /** Compiles the pattern as the search does (Unicode aware, case-insensitive unless matchCase). Throws on a syntax error */
 export function compileSearchRegex(pattern: string, matchCase: boolean): RegExp {

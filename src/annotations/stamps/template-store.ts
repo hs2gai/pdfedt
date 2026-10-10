@@ -9,7 +9,7 @@ const STORE = STORES.stamps;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
-export async function listUserTemplates(): Promise<StampTemplate[]> {
+async function listUserTemplates(): Promise<StampTemplate[]> {
   const db = await openDb();
   const all = await idbRequest(db.transaction(STORE).objectStore(STORE).getAll() as IDBRequest<StampTemplate[]>);
   return all.sort((a, b) => b.updatedAt - a.updatedAt);

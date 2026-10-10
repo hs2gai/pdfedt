@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample } from './helpers';
+import { openPdf, pageGeometry, addText, annotationTypes, saveVia, sample, openBytes, downloadBytes, waitUntilOpened } from './helpers';
 
 const STAMP = 13;
 
@@ -14,11 +14,11 @@ test.beforeEach(async ({ page }) => {
 
 /** Reopens the bytes, enters the password and waits until the page is rendered */
 async function reopenWithPassword(page: Page, bytes: Buffer, password: string) {
-  await page.locator('input[type=file]').first().setInputFiles({ name: 'saved.pdf', mimeType: 'application/pdf', buffer: bytes });
+  await openBytes(page, bytes);
   await expect(page.locator('.password-prompt')).toBeVisible();
   await page.locator('.password-prompt input').fill(password);
   await page.locator('.password-prompt button').click();
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
   await page.waitForTimeout(500);
 }
 
@@ -46,8 +46,7 @@ test('パスワードを付けて保存すると、開くときにパスワー�
   await dialog.locator('input[type=checkbox]').check();
   await expect(submit).toBeEnabled();
 
-  const [download] = await Promise.all([page.waitForEvent('download'), submit.click()]);
-  const saved = readFileSync((await download.path())!);
+  const { bytes: saved } = await downloadBytes(page, () => submit.click());
   expect(isEncrypted(saved)).toBe(true);
 
   // The working document is not left encrypted (a normal save stays unencrypted)
@@ -66,7 +65,13 @@ test('パスワードを付けて保存すると、開くときにパスワー�
     dt.items.add(new File([bytes], 'extra.pdf', { type: 'application/pdf' }));
     const pane = document.querySelector('.thumbs')!;
     const r = pane.getBoundingClientRect();
-    const init = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + r.width / 2, clientY: r.bottom - 5 };
+    const init = {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: dt,
+      clientX: r.left + r.width / 2,
+      clientY: r.bottom - 5,
+    };
     pane.dispatchEvent(new DragEvent('dragover', init));
     pane.dispatchEvent(new DragEvent('drop', init));
   }, extra);

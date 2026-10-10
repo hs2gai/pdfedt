@@ -9,6 +9,7 @@ import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
 import { ZoomGestureWrapper } from '@embedpdf/plugin-zoom/react';
 import { TouchGestures } from './TouchGestures';
 import { AnnotationMenu } from '../annotations/AnnotationMenu';
+import { TextSelectionMenu } from '../annotations/TextSelectionMenu';
 import { PasswordPrompt } from './PasswordPrompt';
 import { PdfErrorCode } from '@embedpdf/models';
 import { frozenFreeTextRenderers } from '../annotations/FrozenFreeText';
@@ -23,6 +24,8 @@ interface Props {
   pageOverlay?: (pageIndex: number, scale: number) => React.ReactNode;
   /** Do not pass pointer events to the annotation layer (while the "Content" tool is active; clicks reach the page handling) */
   annotationsInert?: boolean;
+  /** Annotating is allowed: offer highlight / underline / strikeout on selected text */
+  canAnnotate: boolean;
 }
 
 /**
@@ -43,7 +46,11 @@ function rotationTransform(rotation: number, width: number, height: number): str
   }
 }
 
-export function PdfPages({ documentId, pageOverlay, annotationsInert }: Props) {
+/** Whether a page image is on screen (the first rendered page of a newly opened document) */
+export const isFirstPageRendered = () =>
+  [...document.querySelectorAll<HTMLImageElement>('.page img')].some((img) => img.complete && img.naturalWidth > 0);
+
+export function PdfPages({ documentId, pageOverlay, annotationsInert, canAnnotate }: Props) {
   return (
     <DocumentContent documentId={documentId}>
       {({ isLoaded, isError, documentState }) => {
@@ -78,7 +85,13 @@ export function PdfPages({ documentId, pageOverlay, annotationsInert }: Props) {
                         >
                           <RenderLayer documentId={documentId} pageIndex={pageIndex} />
                           <SearchLayer documentId={documentId} pageIndex={pageIndex} scale={scale} className="search-layer" />
-                          <SelectionLayer documentId={documentId} pageIndex={pageIndex} />
+                          <SelectionLayer
+                            documentId={documentId}
+                            pageIndex={pageIndex}
+                            selectionMenu={
+                              canAnnotate ? (props) => <TextSelectionMenu {...props} documentId={documentId} /> : undefined
+                            }
+                          />
                           <FormHighlightLayer documentId={documentId} pageIndex={pageIndex} scale={scale} />
                           <AnnotationLayer
                             documentId={documentId}

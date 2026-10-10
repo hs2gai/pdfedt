@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openPdf, pageGeometry, pdfStreams, saveVia, selectTool } from './helpers';
+import { openPdf, pageGeometry, pdfStreams, saveVia, selectTool, dragPt, reopenAfterContentEdit } from './helpers';
 
 // sample-vertical.pdf (A4, Identity-V): columns centered at x = 500 / 480 / 460 from y = 100 (top-left origin, 12pt).
 // Column 1 is set with "1 Tf" + a scaled text matrix (InDesign style), the others with "12 Tf".
@@ -14,25 +14,16 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** Drags on the first page between two points given in pt */
-async function dragPt(page: Page, from: [number, number], to: [number, number]) {
-  const { box, scale } = await pageGeometry(page);
-  await page.mouse.move(box.x + from[0] * scale, box.y + from[1] * scale);
-  await page.mouse.down();
-  await page.mouse.move(box.x + to[0] * scale, box.y + to[1] * scale, { steps: 8 });
-  await page.mouse.up();
-  await page.waitForTimeout(600);
-}
-
 const streamTexts = (bytes: Buffer) => pdfStreams(bytes).map((s) => s.data.toString('latin1'));
 
 test('縦書きの列の下線は右側、取消線は中央に縦線で引く（横書きの行は従来どおり）', async ({ page }) => {
   await openPdf(page, 'sample-vertical.pdf');
   await selectTool(page, '下線');
-  await dragPt(page, [500, 104], [500, 190]);
+  await dragPt(page, [500, 104], [500, 190], 600);
   await selectTool(page, '取消線');
-  await dragPt(page, [480, 104], [480, 190]);
+  await dragPt(page, [480, 104], [480, 190], 600);
   await selectTool(page, '下線');
-  await dragPt(page, [62, 395], [140, 395]);
+  await dragPt(page, [62, 395], [140, 395], 600);
 
   const saved = await saveVia(page, '注釈付きで保存');
   const pdf = saved.toString('latin1');
@@ -59,7 +50,12 @@ const bars = (page: Page) =>
       .filter((el) => {
         const bg = getComputedStyle(el).backgroundColor;
         const r = el.getBoundingClientRect();
-        return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && Math.min(r.width, r.height) <= 3 * s && Math.max(r.width, r.height) > 4 * s;
+        return (
+          bg !== 'rgba(0, 0, 0, 0)' &&
+          bg !== 'transparent' &&
+          Math.min(r.width, r.height) <= 3 * s &&
+          Math.max(r.width, r.height) > 4 * s
+        );
       })
       .map((el) => {
         const r = el.getBoundingClientRect();
@@ -101,7 +97,9 @@ for (const [tool, from] of [
   });
 }
 
-test('複数の列にまたがって選んでも、列ごとの縦線になる（隣の列とまとめない）。選び始めの 1 字でも縦線', async ({ page }) => {
+test('複数の列にまたがって選んでも、列ごとの縦線になる（隣の列とまとめない）。選び始めの 1 字でも縦線', async ({
+  page,
+}) => {
   await openPdf(page, 'sample-vertical.pdf');
   const { box, scale } = await pageGeometry(page);
   const at = (x: number, y: number) => [box.x + x * scale, box.y + y * scale] as const;
@@ -219,27 +217,13 @@ test('本文編集で縦書きの文字を置換すると縦書き（Identity-V�
   await replace('縦書きの見本です。「テスト」用ー', '置き換えた縦書き、PDF');
   await replace('置き換えた縦書き、PDF', '二度目の置換です');
 
-  await page.locator('.toolbar .save-btn').click();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page
-      .locator('.menu-list button')
-      .filter({ has: page.locator('.menu-label', { hasText: '新ファイルで保存' }) })
-      .click(),
-  ]);
-  const bytes = (await import('node:fs')).readFileSync((await download.path())!);
+  const bytes = await saveVia(page, '新ファイルで保存');
   // The new text uses our embedded font in vertical writing mode
   const fontDicts = bytes.toString('latin1').match(/<<[^<>]*\/Identity-V[^<>]*>>/g) ?? [];
   expect(fontDicts.some((d) => d.includes('PDFUGU+'))).toBe(true);
 
   // Reopen: the text reads back, in the place of the original column 1
-  await page.locator('.toolbar button', { hasText: '本文編集を終了' }).click();
-  await page
-    .locator('input[type=file]')
-    .first()
-    .setInputFiles({ name: 'edited.pdf', mimeType: 'application/pdf', buffer: bytes });
-  await page.waitForSelector('.page img');
-  await page.waitForTimeout(500);
+  await reopenAfterContentEdit(page, bytes);
   const rects: { content: string; rect: { origin: { x: number; y: number }; size: { width: number } } }[] =
     await page.evaluate(async () => {
       const rt = window.__pdf.runtime;

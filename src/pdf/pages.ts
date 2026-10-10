@@ -49,23 +49,17 @@ export function movePage(m: WrappedPdfiumModule, docPtr: number, from: number, t
  */
 export function importPdf(m: WrappedPdfiumModule, docPtr: number, bytes: Uint8Array, insertIndex: number): number {
   const u = wasmUtils(m);
-  return u.withBytes(bytes, (ptr, len) => {
-    const src = m.FPDF_LoadMemDocument(ptr, len, '');
-    if (!src) throw new Error(t('pages.importOpenFailed'));
+  return u.withMemDocument(bytes, '', t('pages.importOpenFailed'), (src) => {
+    const count = m.FPDF_GetPageCount(src);
+    const indices = u.malloc(count * 4);
     try {
-      const count = m.FPDF_GetPageCount(src);
-      const indices = u.malloc(count * 4);
-      try {
-        for (let i = 0; i < count; i++) m.pdfium.setValue(indices + i * 4, i, 'i32');
-        if (!m.FPDF_ImportPagesByIndex(docPtr, src, indices, count, insertIndex)) {
-          throw new Error(t('pages.importFailed'));
-        }
-      } finally {
-        u.free(indices);
+      for (let i = 0; i < count; i++) m.pdfium.setValue(indices + i * 4, i, 'i32');
+      if (!m.FPDF_ImportPagesByIndex(docPtr, src, indices, count, insertIndex)) {
+        throw new Error(t('pages.importFailed'));
       }
-      return count;
     } finally {
-      m.FPDF_CloseDocument(src);
+      u.free(indices);
     }
+    return count;
   });
 }

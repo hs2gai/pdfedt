@@ -44,10 +44,12 @@ export function listNonEmbeddedFonts(m: WrappedPdfiumModule, bytes: Uint8Array):
       u.free(p);
     }
   };
-  u.withBytes(bytes, (ptr, len) => {
-    const doc = m.FPDF_LoadMemDocument(ptr, len, '');
-    if (!doc) return; // Give up if it cannot be read (e.g. password protected); display falls back to the bundled fonts
-    try {
+  // Give up if it cannot be read (e.g. password protected); display falls back to the bundled fonts
+  u.withMemDocument(
+    bytes,
+    '',
+    () => undefined,
+    (doc) => {
       const pages = Math.min(m.FPDF_GetPageCount(doc), MAX_PAGES);
       for (let i = 0; i < pages; i++) {
         const page = m.FPDF_LoadPage(doc, i);
@@ -59,10 +61,8 @@ export function listNonEmbeddedFonts(m: WrappedPdfiumModule, bytes: Uint8Array):
           m.FPDF_ClosePage(page);
         }
       }
-    } finally {
-      m.FPDF_CloseDocument(doc);
-    }
-  });
+    },
+  );
   return [...found.values()];
 }
 

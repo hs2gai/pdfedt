@@ -1,5 +1,6 @@
 import { STAMP_COLORS, type StampElement } from '../annotations/stamps/template';
 import { FontSelect } from '../annotations/FontSelect';
+import { DEFAULT_FONT_ID } from '../pdf/fonts/catalog';
 import { useT } from '../i18n';
 
 /** Values and settings of the selected element */
@@ -51,7 +52,10 @@ export function ElementProps({ element: el, onChange }: { element: StampElement;
           </label>
           <label>
             {t('common.font')}
-            <FontSelect value={el.font ?? 'gothic'} onChange={(id) => onChange({ ...el, font: id === 'gothic' ? undefined : id })} />
+            <FontSelect
+              value={el.font ?? DEFAULT_FONT_ID}
+              onChange={(id) => onChange({ ...el, font: id === DEFAULT_FONT_ID ? undefined : id })}
+            />
           </label>
           <div className="se-row">
             {num('fontSize', t('se.prop.fontSize'), 0.5, 4)}

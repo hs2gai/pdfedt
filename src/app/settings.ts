@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { AnnotStyle } from '../annotations/annot-style';
 
 export type Locale = 'ja' | 'en';
 
@@ -16,6 +17,8 @@ export interface AppSettings {
   autoResume: boolean;
   /** Last used tool per toolbar group (markup / shape) */
   groupTools: Record<string, string>;
+  /** Last picked color / stroke width per annotation tool (applied as the tool defaults) */
+  annotStyles: Record<string, AnnotStyle>;
 }
 
 const KEY = 'pdfa.settings';
@@ -26,6 +29,7 @@ const DEFAULTS: AppSettings = {
   localFonts: false,
   autoResume: true,
   groupTools: {},
+  annotStyles: {},
 };
 
 function load(): AppSettings {

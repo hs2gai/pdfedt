@@ -13,6 +13,10 @@ const PERM_ANNOTATE = 1 << 5;
 /** permission bit 9 = fill forms (allowed even without bit 6) */
 const PERM_FILL_FORMS = 1 << 8;
 
+/** A signature forbids changing the content (DocMDP 1: no changes, 2: form fill and signing only) */
+export const isLockedBySignature = (info: DocumentInfo | null) =>
+  !!info && info.signatures > 0 && (info.docMdp === 1 || info.docMdp === 2);
+
 export interface DocumentInfo {
   pageCount: number;
   /** Number of digital signatures */

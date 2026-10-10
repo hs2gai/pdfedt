@@ -14,6 +14,7 @@ A tool for editing PDFs locally, entirely inside your browser, and saving the re
 1. Choose a PDF with "Open" or drag & drop it onto the window
 2. Pick a tool from the toolbar and write
    - Text / Stamp (approval, done, date stamp, name seal, …) / Image / Note / Highlight / Underline / Strikeout / Pen / Rectangle / Ellipse / Line / Arrow
+   - Highlight / Underline / Strikeout, as in Acrobat: select text and pick one from the menu that appears under it (or from the toolbar). With nothing selected, the toolbar button marks the text you trace next
 3. Export with "Save ▾"
    - **Save with annotations** … keeps the original PDF intact and appends only the annotations (default). File name: `original_a.pdf`
    - **Save as new file** … generates a new PDF from the current state (deleted annotations leave no trace). `_n.pdf`

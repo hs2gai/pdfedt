@@ -1,5 +1,5 @@
 import { test, expect, devices, type Page } from '@playwright/test';
-import { sample } from './helpers';
+import { sample, waitUntilOpened } from './helpers';
 
 /** Phones (touch, narrow screen). There is no mouse leave, so menus and panels must close on an outside tap */
 test.use({ ...devices['Pixel 7'] });
@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.waitForSelector('input[type=file]', { state: 'attached' });
   await page.locator('input[type=file]').first().setInputFiles(sample('sample-ja-form.pdf'));
-  await page.waitForSelector('.page img');
+  await waitUntilOpened(page);
 });
 
 test('狭い画面ではページ一覧を閉じた状態で始まり、パネルは画面幅に収まる', async ({ page }) => {

@@ -136,6 +136,7 @@ export const Icons = {
   ),
   square: base(<rect x="4" y="5" width="16" height="14" rx="1" />),
   close: base(<path d="M6 6l12 12M18 6L6 18" />),
+  check: base(<path d="M5 12.5 10 17.5 19 7" />),
   circle: base(<ellipse cx="12" cy="12" rx="8.5" ry="6.5" />),
   line: base(<path d="M5 19 19 5" />),
   arrow: base(

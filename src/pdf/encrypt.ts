@@ -17,16 +17,10 @@ export function encryptCopy(
   password: string,
 ): Uint8Array {
   const u = wasmUtils(m);
-  return u.withBytes(source, (ptr, len) => {
-    const tmp = m.FPDF_LoadMemDocument(ptr, len, sourcePassword);
-    if (!tmp) throw new Error('FPDF_LoadMemDocument failed');
-    try {
-      if (!m.EPDF_SetEncryption(tmp, password, password, PdfPermissionFlag.AllowAll)) {
-        throw new Error('EPDF_SetEncryption failed');
-      }
-      return saveDocument(m, tmp, 'full');
-    } finally {
-      m.FPDF_CloseDocument(tmp);
+  return u.withMemDocument(source, sourcePassword, 'FPDF_LoadMemDocument failed', (tmp) => {
+    if (!m.EPDF_SetEncryption(tmp, password, password, PdfPermissionFlag.AllowAll)) {
+      throw new Error('EPDF_SetEncryption failed');
     }
+    return saveDocument(m, tmp, 'full');
   });
 }

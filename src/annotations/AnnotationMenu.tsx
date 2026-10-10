@@ -3,12 +3,19 @@ import { PdfAnnotationSubtype } from '@embedpdf/models';
 import { useAnnotationCapability, type AnnotationSelectionMenuProps } from '@embedpdf/plugin-annotation/react';
 import { readTextAnnotation } from './text-ja/text-annotation';
 import { requestTextEdit } from './text-ja/edit-requests';
+import { readStampAnnotation, requestStampEdit } from './stamps/stamp-annotation';
+import { useStampTemplates } from './stamps/template-store';
 import { useT } from '../i18n';
+import { styleSpec, stylePatch, type AnnotStyle } from './annot-style';
+import { ColorSelect, WidthSelect } from './StyleControls';
+import { appSettings } from '../app/settings';
 
 /**
  * Small menu shown when an annotation is selected.
  * - Our own text annotations: edit / delete
+ * - Our own stamps: edit (rewrite the contents) / delete. Hidden when the template no longer exists
  * - Sticky notes (Text): enter a comment / delete
+ * - Shapes / pen / text markup: color (and stroke width) / delete. The pick also becomes the tool default
  * - Everything else: delete
  */
 export function AnnotationMenu({
@@ -21,12 +28,19 @@ export function AnnotationMenu({
   const { provides } = useAnnotationCapability();
   const [comment, setComment] = useState<string | null>(null);
   const t = useT();
+  const templates = useStampTemplates();
   if (!selected || !provides) return null;
 
   const annotations = provides.forDocument(documentId);
   const { object } = context.annotation;
   const textData = readTextAnnotation(object);
   const isNote = object.type === PdfAnnotationSubtype.TEXT;
+  const stampData = readStampAnnotation(object);
+  const stampEditable = !!stampData && templates.some((tpl) => tpl.id === stampData.template);
+  const toolId = provides.findToolForAnnotation(object)?.id;
+  const spec = styleSpec(toolId);
+  // Every tool with a spec creates an annotation type that has these fields (not all union members do)
+  const current = object as { strokeColor?: string; strokeWidth?: number };
 
   const remove = () => annotations.deleteAnnotation(object.pageIndex, object.id);
   // For callouts the origin is the top-left of the text box, not of the rect (the relative position is stored in `custom`)
@@ -42,6 +56,14 @@ export function AnnotationMenu({
   });
   const edit = (e: React.MouseEvent) => requestTextEdit(textRequest(e));
   const retarget = (e: React.MouseEvent) => requestTextEdit({ ...textRequest(e), retarget: true });
+  const applyStyle = (style: AnnotStyle) => {
+    if (!toolId) return;
+    annotations.updateAnnotation(object.pageIndex, object.id, stylePatch(toolId, style));
+    const saved = appSettings.get().annotStyles;
+    const next = { ...saved[toolId], ...style };
+    provides.setToolDefaults(toolId, stylePatch(toolId, next));
+    appSettings.set({ annotStyles: { ...saved, [toolId]: next } });
+  };
   const saveComment = () => {
     if (comment !== null) annotations.updateAnnotation(object.pageIndex, object.id, { contents: comment });
     setComment(null);
@@ -52,6 +74,11 @@ export function AnnotationMenu({
       <div className="annot-menu" style={{ top: rect.size.height + 8 }}>
         {textData && (
           <button onClick={edit} disabled={context.contentLocked}>
+            {t('common.edit')}
+          </button>
+        )}
+        {stampEditable && (
+          <button onClick={() => requestStampEdit({ annotationId: object.id })} disabled={context.contentLocked}>
             {t('common.edit')}
           </button>
         )}
@@ -76,6 +103,21 @@ export function AnnotationMenu({
             />
             <button onClick={saveComment}>{t('common.save')}</button>
           </span>
+        )}
+        {spec && (
+          <ColorSelect
+            value={current.strokeColor ?? spec.palette[0].hex}
+            palette={spec.palette}
+            disabled={context.contentLocked}
+            onChange={(color) => applyStyle({ color })}
+          />
+        )}
+        {spec?.width && (
+          <WidthSelect
+            value={current.strokeWidth ?? 1}
+            disabled={context.contentLocked}
+            onChange={(strokeWidth) => applyStyle({ strokeWidth })}
+          />
         )}
         <button onClick={remove} disabled={context.structurallyLocked}>
           {t('common.delete')}

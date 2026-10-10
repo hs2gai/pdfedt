@@ -1,17 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { openPdf, pageGeometry, selectTool } from './helpers';
 
 const STAMP = 13;
-type Summary = { type: number; text?: string; callout?: { box: { x: number; y: number }; tip: { x: number; y: number } } };
-const summary = (page: import('@playwright/test').Page): Promise<Summary[]> =>
+type Summary = {
+  type: number;
+  text?: string;
+  callout?: { box: { x: number; y: number }; tip: { x: number; y: number } };
+};
+const summary = (page: Page): Promise<Summary[]> =>
   page.evaluate(() =>
-    window.__pdf.annotations
-      .getAnnotations()
-      .map((a: { object: { type: number; custom?: { pdfa?: Summary } } }) => ({
-        type: a.object.type,
-        text: a.object.custom?.pdfa?.text,
-        callout: a.object.custom?.pdfa?.callout,
-      })),
+    window.__pdf.annotations.getAnnotations().map((a: { object: { type: number; custom?: { pdfa?: Summary } } }) => ({
+      type: a.object.type,
+      text: a.object.custom?.pdfa?.text,
+      callout: a.object.custom?.pdfa?.callout,
+    })),
   );
 
 /** Callout text: placed with 2 clicks (arrow tip, then text position); the text and the arrow tip can be changed */

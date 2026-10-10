@@ -9,6 +9,7 @@ import type { AnnotationScope, TrackedAnnotation } from '@embedpdf/plugin-annota
 import type { PdfRuntime } from '../pdf/engine';
 import { unrotateExportedAppearance } from '../pdf/appearance-matrix';
 import { isCopyable, pasteOffset, translateAnnotation, unionRect } from './clipboard-geometry';
+import { toArrayBuffer } from './appearance-annotation';
 
 /** Each paste onto the same page shifts the copies this far down-right (pt) */
 const PASTE_SHIFT = 10;
@@ -66,8 +67,7 @@ export function copyAnnotations(
         const page = doc.pages[annotation.pageIndex];
         const exported = await runtime.engine.exportAnnotationAppearanceAsPdf(doc, page, annotation).toPromise();
         const pdf = unrotateExportedAppearance(new Uint8Array(exported));
-        const appearance = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;
-        return { annotation, appearance };
+        return { annotation, appearance: toArrayBuffer(pdf) };
       }),
     );
   })();
